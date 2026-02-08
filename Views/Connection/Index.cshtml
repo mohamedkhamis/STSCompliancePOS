@@ -1,0 +1,445 @@
+@model STSCompliancePOS.Services.ConnectionStatus
+@inject STSCompliancePOS.Services.VSMConfiguration Config
+@{ ViewData["Title"] = "VSM Connection"; }
+
+<div class="page-header">
+    <h2>VSM Connection</h2>
+    <div class="subtitle">@Config.DeviceModel (@Config.FirmwareVersion) · @Config.Protocol</div>
+</div>
+
+<div class="grid-2">
+    <!-- Connection Panel -->
+    <div>
+        <div class="card card-accent-green" id="connection-card">
+            <div class="card-title green">COM Port Connection</div>
+
+            <div class="form-group">
+                <label>Select COM Port</label>
+                <div style="display: flex; gap: 8px;">
+                    <select class="form-control" id="port-select" style="flex: 1;">
+                        <option value="">Select COM Port...</option>
+                        @foreach (var port in Model.AvailablePorts)
+                        {
+                            <!option value="@port" selected="@(port == Model.ConnectedPort)">@port</!option>                        }
+                    </select>
+                    <button class="btn btn-ghost btn-sm" onclick="refreshPorts()" title="Refresh">🔄</button>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Baud Rate</label>
+                    <input type="text" class="form-control" value="@Config.SerialPort.BaudRate" disabled />
+                </div>
+                <div class="form-group">
+                    <label>Format</label>
+                    <input type="text" class="form-control" value="@Config.SerialPort.DataBits@(Config.SerialPort.Parity[0])@Config.SerialPort.StopBits" disabled />
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-bottom: 14px;">
+                <div class="info-row">
+                    <span class="label">Read Timeout</span>
+                    <span class="value mono">@Config.SerialPort.ReadTimeout ms</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Write Timeout</span>
+                    <span class="value mono">@Config.SerialPort.WriteTimeout ms</span>
+                </div>
+            </div>
+
+            <button id="connect-btn" class="btn @(Model.IsConnected ? "btn-secondary" : "btn-primary")"
+                    style="width: 100%; margin-bottom: 12px;"
+                    onclick="toggleConnection()">
+                @(Model.IsConnected ? "Disconnect" : "Connect")
+            </button>
+
+            @if (!string.IsNullOrEmpty(Model.LastError))
+            {
+                <div class="verify-box verify-fail">
+                    <span class="verify-text">Error: @Model.LastError</span>
+                </div>
+            }
+        </div>
+
+        <!-- Connection Status -->
+        <div class="card" id="status-card">
+            <div class="card-title" style="color: var(--text-dim);">Connection Status</div>
+            <div class="info-row">
+                <span class="label">Status</span>
+                <span class="value" id="conn-status-text" style="color: @(Model.IsConnected ? "var(--success)" : "var(--error)")">
+                    @(Model.IsConnected ? "● Connected" : "○ Disconnected")
+                </span>
+            </div>
+            <div class="info-row">
+                <span class="label">Port</span>
+                <span class="value mono" id="conn-port-text">@(Model.ConnectedPort ?? "—")</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Device</span>
+                <span class="value mono">@Config.DeviceModel</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Protocol</span>
+                <span class="value mono">@Config.Protocol</span>
+            </div>
+            <div class="info-row">
+                <span class="label">CRC</span>
+                <span class="value mono">CRC-16/ARC</span>
+            </div>
+        </div>
+
+        <!-- Token Generation Config -->
+        <div class="card card-accent-purple">
+            <div class="card-title purple">Token Generation Config</div>
+            <div class="grid-2">
+                <div class="info-row">
+                    <span class="label">DKGA</span>
+                    <span class="value mono">@Config.TokenGeneration.DKGA.ToString("D2")</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">EA</span>
+                    <span class="value mono">@Config.TokenGeneration.EA.ToString("D2")</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">TCT</span>
+                    <span class="value mono">@Config.TokenGeneration.TCT</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">RND (Fixed)</span>
+                    <span class="value mono">@Config.TokenGeneration.RND</span>
+                </div>
+            </div>
+            <div style="margin-top: 10px; font-size: 10px; color: var(--text-dim);">
+                ⚙️ Edit appsettings.json to modify these values
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Test Panel -->
+    <div>
+        <div class="card card-accent-warn">
+            <div class="card-title warn">Quick Token Test</div>
+
+            <div class="form-group">
+                <label>MeterPAN</label>
+                <select class="form-control" id="test-pan">
+                    <option value="@Config.TestPANs.PAN_11">@Config.TestPANs.PAN_11 (11-digit DRN)</option>
+                    <option value="@Config.TestPANs.PAN_13">@Config.TestPANs.PAN_13 (13-digit DRN)</option>
+                    <option value="@Config.TestPANs.PAN_CTSA15">@Config.TestPANs.PAN_CTSA15 (CTSA15)</option>
+                </select>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Key Register</label>
+                    <select class="form-control" id="test-reg">
+                        @foreach (var reg in Config.KeyRegisters)
+                        {
+                            <!option value="@reg.Value.Register" 
+                                     selected="@reg.Value.IsDefault"
+                                     style="@(reg.Value.IsExpired ? "color:var(--error)" : "")">
+                                @reg.Key — @reg.Value.Description
+                            </!option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>TI</label>
+                    <input type="text" class="form-control" id="test-ti" value="01" />
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Credit Type</label>
+                    <select class="form-control" id="test-ct">
+                        <option value="0">Electricity (kWh)</option>
+                        <option value="1">Water (kL)</option>
+                        <option value="2">Gas (m³)</option>
+                        <option value="3">Time (min)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="number" class="form-control" id="test-amount" value="0.1" step="0.1" />
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Issue Date</label>
+                    <input type="datetime-local" class="form-control" id="test-date" value="2014-03-01T13:00" />
+                </div>
+                <div class="form-group">
+                    <label>Base Date</label>
+                    <select class="form-control" id="test-bd">
+                        <option value="2014">2014</option>
+                        <option value="2035">2035</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%;" onclick="quickTokenTest()">
+                ⚡ Generate Token
+            </button>
+
+            <div id="token-result" style="margin-top: 12px; display: none;">
+                <div class="token-label">Generated Token</div>
+                <div class="token-display" id="token-value"></div>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label>Expected Token (optional, for comparison)</label>
+                <input type="text" class="form-control" id="expected-token" placeholder="e.g. 7063 0503 4700 2872 6114" />
+            </div>
+            <div id="compare-result" style="display: none;"></div>
+        </div>
+
+        <!-- Progress Log -->
+        <div class="card">
+            <div class="card-title" style="color: var(--text-dim);">Activity Log</div>
+            <div id="progress-log" style="height: 180px; overflow-y: auto; background: #000; border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);">
+                <div class="log-entry">[Ready] Waiting for connection...</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="margin-top: 8px;" onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+</div>
+
+<!-- Key Registers Table -->
+<div class="card" style="margin-top: 16px;">
+    <div class="card-title" style="color: var(--text-dim);">Pre-loaded Key Registers (from appsettings.json)</div>
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+                <tr style="background: var(--bg-surface); color: var(--accent);">
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">Register</th>
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">Description</th>
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">SGC</th>
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">KRN</th>
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">BD</th>
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">KEN</th>
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border);">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var reg in Config.KeyRegisters)
+                {
+                    <tr style="border-bottom: 1px solid var(--card-border);">
+                        <td style="padding: 10px; font-family: var(--mono); color: var(--accent);">VKREG@reg.Value.Register</td>
+                        <td style="padding: 10px;">@reg.Value.Description</td>
+                        <td style="padding: 10px; font-family: var(--mono);">@reg.Value.SGC</td>
+                        <td style="padding: 10px; font-family: var(--mono);">@reg.Value.KRN</td>
+                        <td style="padding: 10px; font-family: var(--mono);">@reg.Value.BaseDate</td>
+                        <td style="padding: 10px; font-family: var(--mono); color: @(reg.Value.KEN < 255 ? "var(--warn)" : "var(--text)")">@reg.Value.KEN</td>
+                        <td style="padding: 10px;">
+                            @if (reg.Value.IsExpired)
+                            {
+                                <span class="badge badge-fail">EXPIRED</span>
+                            }
+                            else if (reg.Value.IsDefault)
+                            {
+                                <span class="badge badge-pass">DEFAULT</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-info">OK</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Run Compliance Tests -->
+<div class="card card-accent-blue" style="margin-top: 16px;">
+    <div class="card-title blue">Run Real Compliance Tests</div>
+    <div class="grid-4" style="margin-bottom: 14px;">
+        <div class="form-group">
+            <label>Utility Type</label>
+            <select class="form-control" id="suite-utility">
+                <option value="E">Electricity</option>
+                <option value="W">Water</option>
+                <option value="G">Gas</option>
+                <option value="T">Time</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+                <input type="checkbox" id="suite-currency" /> Include Currency
+            </label>
+        </div>
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+                <input type="checkbox" id="suite-keychange" /> Include Keychange
+            </label>
+        </div>
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+                <input type="checkbox" id="suite-extended" /> Extended (STS202-5)
+            </label>
+        </div>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn-primary" onclick="runFullSuite()">
+            🧪 Run Full Compliance Suite
+        </button>
+        <button class="btn btn-secondary" onclick="exportResults('csv')">
+            📄 Export CSV
+        </button>
+        <button class="btn btn-secondary" onclick="exportResults('html')">
+            🌐 Export HTML
+        </button>
+        <button class="btn btn-ghost" onclick="printReport()">
+            🖨️ Print Report
+        </button>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Toggle connection
+    async function toggleConnection() {
+        const portSelect = document.getElementById('port-select');
+        const port = portSelect.value;
+
+        if (window.vsmConnection.isConnected) {
+            await disconnectVSM();
+        } else {
+            if (!port) {
+                alert('Please select a COM port');
+                return;
+            }
+            await connectVSM(port);
+        }
+    }
+
+    // Quick token test
+    async function quickTokenTest() {
+        if (!window.vsmConnection.isConnected) {
+            alert('VSM not connected');
+            return;
+        }
+
+        const pan = document.getElementById('test-pan').value;
+        const reg = document.getElementById('test-reg').value;
+        const ti = document.getElementById('test-ti').value;
+        const ct = document.getElementById('test-ct').value;
+        const amount = parseFloat(document.getElementById('test-amount').value);
+        const dateStr = document.getElementById('test-date').value;
+        const bd = parseInt(document.getElementById('test-bd').value);
+
+        await generateToken(pan, reg, ti, ct, amount, dateStr, bd);
+    }
+
+    // Handle token received
+    window.onTokenReceived = function(result) {
+        const resultDiv = document.getElementById('token-result');
+        const valueDiv = document.getElementById('token-value');
+        const compareDiv = document.getElementById('compare-result');
+        const expectedInput = document.getElementById('expected-token');
+
+        if (result.token) {
+            valueDiv.textContent = result.token;
+            valueDiv.style.color = 'var(--accent)';
+            resultDiv.style.display = 'block';
+
+            // Compare with expected if provided
+            const expected = expectedInput.value.replace(/\s/g, '');
+            if (expected) {
+                const actual = result.token.replace(/\s/g, '');
+                if (actual === expected) {
+                    compareDiv.innerHTML = '<div class="verify-box verify-pass"><span class="verify-text">✓ MATCH — Token matches expected value!</span></div>';
+                } else {
+                    compareDiv.innerHTML = '<div class="verify-box verify-fail"><span class="verify-text">✗ MISMATCH — Token does not match expected value</span></div>';
+                }
+                compareDiv.style.display = 'block';
+            } else {
+                compareDiv.style.display = 'none';
+            }
+        } else {
+            valueDiv.textContent = 'Error: ' + result.error;
+            valueDiv.style.color = 'var(--error)';
+            resultDiv.style.display = 'block';
+            compareDiv.style.display = 'none';
+        }
+    };
+
+    // Run full suite
+    async function runFullSuite() {
+        if (!window.vsmConnection.isConnected) {
+            alert('VSM not connected. Please connect first.');
+            return;
+        }
+
+        const utility = document.getElementById('suite-utility').value;
+        const currency = document.getElementById('suite-currency').checked;
+        const keychange = document.getElementById('suite-keychange').checked;
+        const extended = document.getElementById('suite-extended').checked;
+
+        await runFullTestSuite(utility, currency, keychange, extended);
+    }
+
+    // Handle test complete
+    window.onTestComplete = function(result) {
+        const log = document.getElementById('progress-log');
+        log.innerHTML += `<div class="log-entry" style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}">
+            ═══ Suite Complete: ${result.totalPassed}/${result.totalSteps} passed ═══
+        </div>`;
+        log.scrollTop = log.scrollHeight;
+
+        if (confirm(`Test complete: ${result.totalPassed}/${result.totalSteps} passed.\n\nExport results?`)) {
+            exportResults('csv');
+        }
+    };
+
+    // Export results
+    function exportResults(format) {
+        window.location.href = `/api/vsm/export/${format}`;
+    }
+
+    // Print report
+    function printReport() {
+        window.open('/api/vsm/report/print', '_blank');
+    }
+
+    // Clear log
+    function clearLog() {
+        document.getElementById('progress-log').innerHTML = '<div class="log-entry">[Cleared]</div>';
+    }
+
+    // Update UI on status change
+// ReSharper disable once Html.EventNotResolved
+    window.addEventListener('vsmStatusChanged', (e) => {
+        const status = e.detail;
+        const statusText = document.getElementById('conn-status-text');
+        const portText = document.getElementById('conn-port-text');
+
+        if (statusText) {
+            statusText.textContent = status.isConnected ? '● Connected' : '○ Disconnected';
+            statusText.style.color = status.isConnected ? 'var(--success)' : 'var(--error)';
+        }
+        if (portText) {
+            portText.textContent = status.connectedPort || '—';
+        }
+    });
+
+    // Refresh ports
+    async function refreshPorts() {
+        const ports = await fetchAvailablePorts();
+        const select = document.getElementById('port-select');
+        const current = select.value;
+        select.innerHTML = '<option value="">Select COM Port...</option>';
+        ports.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            if (p === current) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+</script>
+}

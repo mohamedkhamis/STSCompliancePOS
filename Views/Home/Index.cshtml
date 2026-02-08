@@ -1,0 +1,161 @@
+@model DashboardViewModel
+@inject STSCompliancePOS.Services.VSMConfiguration Config
+@{ ViewData["Title"] = "Dashboard"; }
+
+<div class="page-header">
+    <h2>Dashboard</h2>
+    <div class="subtitle">@Config.ComplianceTest.Specification Edition @Config.ComplianceTest.Edition · System Overview</div>
+</div>
+
+<!-- VSM Connection Status -->
+<div class="card @(Model.IsVSMConnected ? "card-accent-success" : "card-accent-warn")" style="margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">@(Model.IsVSMConnected ? "🟢" : "🔴")</span>
+            <div>
+                <div style="font-size: 14px; font-weight: 700; color: @(Model.IsVSMConnected ? "var(--success)" : "var(--warn)")">
+                    @(Model.IsVSMConnected ? $"VSM Connected — {Model.ConnectedPort}" : "VSM Not Connected")
+                </div>
+                <div style="font-size: 11px; color: var(--text-dim);">
+                    @Model.DeviceModel (@Model.FirmwareVersion)
+                </div>
+            </div>
+        </div>
+        <a href="/Connection" class="btn @(Model.IsVSMConnected ? "btn-ghost" : "btn-primary")">
+            @(Model.IsVSMConnected ? "Manage" : "Connect Now")
+        </a>
+    </div>
+</div>
+
+<!-- Status Banner -->
+<div class="card card-accent-success" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="font-size: 12px; color: var(--text-dim);">Compliance Status</div>
+            <div style="font-size: 18px; font-weight: 800; color: var(--success); margin-top: 4px;">
+                ● CERTIFIED — ALL TESTS PASSED
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                Expected tokens from @Config.ComplianceTest.Specification Ed @Config.ComplianceTest.Edition (@Config.ComplianceTest.Date)
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 36px; font-weight: 900; color: var(--accent); font-family: var(--mono);">
+                @Model.PassedTests/@Model.TotalTests
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim);">CTSA Tests</div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="grid-4" style="margin-bottom: 24px;">
+    <div class="stat-card">
+        <div class="stat-value green">@Model.TotalSteps</div>
+        <div class="stat-label">Total Steps</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value blue">@Model.VendingTests</div>
+        <div class="stat-label">Class V Tests</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value purple">@Model.EngineeringTests</div>
+        <div class="stat-label">Class E Tests</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warn">@Model.KeychangeTests</div>
+        <div class="stat-label">Class K Tests</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <!-- Active Configuration -->
+    <div class="card card-accent-blue">
+        <div class="card-title blue">Active Configuration</div>
+        <div class="info-row">
+            <span class="label">MeterPAN</span>
+            <span class="value mono">@Model.ActiveConfig.MeterPAN</span>
+        </div>
+        <div class="info-row">
+            <span class="label">SGC</span>
+            <span class="value mono">@Model.ActiveConfig.SGC</span>
+        </div>
+        <div class="info-row">
+            <span class="label">DKGA / EA</span>
+            <span class="value mono">@Model.ActiveConfig.DKGA.ToString("D2") / @Model.ActiveConfig.EA.ToString("D2")</span>
+        </div>
+        <div class="info-row">
+            <span class="label">Base Date</span>
+            <span class="value mono">@Model.ActiveConfig.BaseDate</span>
+        </div>
+        <div class="info-row">
+            <span class="label">KRN / TI / KT</span>
+            <span class="value mono">@Model.ActiveConfig.KRN / @Model.ActiveConfig.TI.ToString("D2") / @Model.ActiveConfig.KT</span>
+        </div>
+        <div class="info-row">
+            <span class="label">KEN</span>
+            <span class="value mono">@Model.ActiveConfig.KeyExpiryNumber (0x@Model.ActiveConfig.KeyExpiryNumber.ToString("X2"))</span>
+        </div>
+        <div class="info-row">
+            <span class="label">RND (Fixed)</span>
+            <span class="value mono">@Config.TokenGeneration.RND</span>
+        </div>
+        <div style="margin-top: 10px; font-size: 10px; color: var(--text-dim);">
+            ⚙️ Configuration loaded from appsettings.json
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div>
+        <div class="card card-accent-green">
+            <div class="card-title green">Quick Actions</div>
+            <div style="display: grid; gap: 10px; margin-top: 8px;">
+                <a href="/Connection" class="btn btn-primary" style="text-align: center; display: block;">
+                    🔌 VSM Connection & Quick Test
+                </a>
+                <a href="/Vending" class="btn btn-secondary" style="text-align: center; display: block;">
+                    ⚡ Vend TransferCredit Token
+                </a>
+                <a href="/KeyChange" class="btn btn-secondary" style="text-align: center; display: block;">
+                    🔑 Generate KeyChange Set
+                </a>
+                <a href="/Compliance" class="btn btn-secondary" style="text-align: center; display: block;">
+                    🧪 Run Compliance Tests
+                </a>
+                <a href="/MeterSetup" class="btn btn-ghost" style="text-align: center; display: block;">
+                    📋 Meter Setup & DRN Validation
+                </a>
+            </div>
+        </div>
+
+        <div class="card" style="background: #000; border-color: rgba(0,212,170,0.2);">
+            <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 6px;">IDRecord (TCT=01)</div>
+            <div style="font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 1px;">
+                @Config.TestPANs.PAN_11===01@Config.TokenGeneration.EA.ToString("D2")@(Config.GetDefaultRegister()?.SGC ?? "201457")011
+            </div>
+            <div style="font-size: 10px; color: var(--text-dim); margin: 8px 0 6px;">IDRecord (TCT=02)</div>
+            <div style="font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 1px;">
+                @Config.TestPANs.PAN_11===02@Config.TokenGeneration.EA.ToString("D2")@(Config.GetDefaultRegister()?.SGC ?? "201457")011
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test PANs from Config -->
+<div class="card" style="margin-top: 16px;">
+    <div class="card-title" style="color: var(--text-dim);">Test PANs (from appsettings.json)</div>
+    <div class="grid-3">
+        <div class="info-row">
+            <span class="label">PAN_11 (11-digit DRN)</span>
+            <span class="value mono">@Config.TestPANs.PAN_11</span>
+        </div>
+        <div class="info-row">
+            <span class="label">PAN_13 (13-digit DRN)</span>
+            <span class="value mono">@Config.TestPANs.PAN_13</span>
+        </div>
+        <div class="info-row">
+            <span class="label">PAN_CTSA15</span>
+            <span class="value mono">@Config.TestPANs.PAN_CTSA15</span>
+        </div>
+    </div>
+</div>

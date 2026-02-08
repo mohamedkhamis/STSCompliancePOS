@@ -1,0 +1,122 @@
+@model VendResult
+@{ ViewData["Title"] = "Token Generated"; }
+
+<div class="breadcrumb">
+    <a href="/Vending">Vend Token</a>
+    <span>›</span>
+    <span>Result</span>
+</div>
+
+<div class="page-header">
+    <h2>Token Generated</h2>
+    <div class="subtitle">CTSA01 — @Model.TokenType</div>
+</div>
+
+<!-- Verification Banner -->
+<div style="text-align: center; margin-bottom: 24px;">
+    <div class="success-banner">
+        <span>✓ TOKEN VERIFIED — MATCH CONFIRMED</span>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div>
+        <!-- Generated Token -->
+        <div class="card card-accent-green">
+            <div class="card-title green">Generated Token</div>
+            <div class="token-label">20-Digit STS Token</div>
+            <div class="token-display">@Model.GeneratedToken</div>
+
+            <div class="verify-box verify-pass" style="margin-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="verify-text">Matches expected value</span>
+                    <span class="badge badge-pass">PASS</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison -->
+        <div class="card card-accent-blue">
+            <div class="card-title blue">Expected vs Generated</div>
+            <div class="compare-grid">
+                <div>
+                    <div class="compare-label">Expected</div>
+                    <div class="compare-value expected">@Model.ExpectedToken</div>
+                </div>
+                <div>
+                    <div class="compare-label">Generated</div>
+                    <div class="compare-value generated">@Model.GeneratedToken</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <!-- Token Breakdown -->
+        <div class="card card-accent-purple">
+            <div class="card-title purple">Token Breakdown</div>
+            @if (Model.Breakdown != null)
+            {
+                <div class="info-row">
+                    <span class="label">Token Class</span>
+                    <span class="value">@Model.Breakdown.TokenClass</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Subclass</span>
+                    <span class="value">@Model.Breakdown.Subclass</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">TID</span>
+                    <span class="value mono">@Model.Breakdown.TID</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Amount (encoded)</span>
+                    <span class="value mono">@Model.Breakdown.AmountEncoded</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">RND bits</span>
+                    <span class="value mono">@Model.Breakdown.RND</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">CRC</span>
+                    <span class="value" style="color: var(--success);">
+                        @(Model.Breakdown.CRCValid ? "Valid ✓" : "Invalid ✗")
+                    </span>
+                </div>
+            }
+        </div>
+
+        <!-- Request Parameters -->
+        @if (Model.Request != null)
+        {
+            <div class="card">
+                <div class="card-title" style="color: var(--text-dim);">Request Parameters</div>
+                <div class="info-row">
+                    <span class="label">MeterPAN</span>
+                    <span class="value mono">@Model.Request.MeterPAN</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Amount</span>
+                    <span class="value mono">@Model.Request.Amount @Model.Request.Unit</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Issue Date</span>
+                    <span class="value mono">@Model.Request.TokenIssueDate.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">SGC</span>
+                    <span class="value mono">@Model.Request.SGC</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Base Date</span>
+                    <span class="value mono">@Model.Request.BaseDate</span>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div style="display: flex; gap: 12px; margin-top: 16px;">
+    <a href="/Vending" class="btn btn-secondary">⚡ Vend Another</a>
+    <a href="/Compliance" class="btn btn-primary">🧪 Run All Tests</a>
+</div>

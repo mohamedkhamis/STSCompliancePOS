@@ -1,0 +1,60 @@
+@{
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — STS Compliance POS</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="sidebar-logo">
+                <div class="brand">MDM Vending Station</div>
+                <h1>STS POS Terminal</h1>
+                <div class="version">DKGA04 / EA07 · Ed 2.2</div>
+            </div>
+
+            <div class="sidebar-nav">
+                <a href="/" class="@(currentController == "Home" ? "active" : "")">
+                    <span class="nav-icon">📊</span> Dashboard
+                </a>
+                <a href="/Vending" class="@(currentController == "Vending" ? "active" : "")">
+                    <span class="nav-icon">⚡</span> Vend Token
+                </a>
+                <a href="/KeyChange" class="@(currentController == "KeyChange" ? "active" : "")">
+                    <span class="nav-icon">🔑</span> Key Change
+                </a>
+                <a href="/Compliance" class="@(currentController == "Compliance" ? "active" : "")">
+                    <span class="nav-icon">🧪</span> Compliance Tests
+                </a>
+                <a href="/MeterSetup" class="@(currentController == "MeterSetup" ? "active" : "")">
+                    <span class="nav-icon">📋</span> Meter Setup
+                </a>
+                <a href="/Connection" class="@(currentController == "Connection" ? "active" : "")">
+                    <span class="nav-icon">🔌</span> VSM Connection
+                </a>
+            </div>
+
+            <div class="sidebar-status" id="connection-status">
+                <span class="status-dot" id="status-dot" style="background: var(--error);"></span>
+                <span id="status-text" style="font-size: 12px; color: var(--text-dim);">Not Connected</span>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="~/js/vsm-connection.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

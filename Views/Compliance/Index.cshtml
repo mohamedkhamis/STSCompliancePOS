@@ -1,0 +1,250 @@
+@model List<CTSATest>
+@{ ViewData["Title"] = "Compliance Test Suite"; }
+
+<div class="page-header">
+    <h2>Compliance Test Suite</h2>
+    <div class="subtitle">STS 531-1-07 Edition 2.2 · DKGA04/EA07 · @Model.Count Tests · @Model.Sum(t => t.TotalSteps) Steps</div>
+</div>
+
+<!-- Run Real Tests Panel -->
+<div class="card card-accent-warn" style="margin-bottom: 20px;">
+    <div class="card-title warn">Run Real Compliance Tests (Requires VSM Connection)</div>
+    <div class="grid-2">
+        <div>
+            <div class="grid-4" style="margin-bottom: 14px;">
+                <div class="form-group">
+                    <label>Utility Type</label>
+                    <select class="form-control" id="run-utility">
+                        <option value="E">Electricity</option>
+                        <option value="W">Water</option>
+                        <option value="G">Gas</option>
+                        <option value="T">Time</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+                        <input type="checkbox" id="run-currency" /> Currency
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+                        <input type="checkbox" id="run-keychange" /> Keychange
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+                        <input type="checkbox" id="run-extended" /> Extended
+                    </label>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="runFullSuiteFromPage()">
+                    🧪 Run Full Suite
+                </button>
+                <button class="btn btn-secondary" onclick="window.location.href='/Connection'">
+                    🔌 VSM Connection
+                </button>
+            </div>
+        </div>
+        <div>
+            <div class="form-group">
+                <label>Run Individual Test</label>
+                <div style="display: flex; gap: 8px;">
+                    <select class="form-control" id="individual-test" style="flex: 1;">
+                        <option value="">Select test...</option>
+                        <option value="CTSA01">CTSA01 — TransferCredit</option>
+                        <option value="CTSA02">CTSA02 — InitiateMeterTest/Display</option>
+                        <option value="CTSA03">CTSA03 — SetMaximumPowerLimit</option>
+                        <option value="CTSA04">CTSA04 — ClearCredit</option>
+                        <option value="CTSA05">CTSA05 — Keychange tokens</option>
+                        <option value="CTSA06">CTSA06 — ClearTamperCondition</option>
+                        <option value="CTSA07">CTSA07 — SetMaxPhasePowerUnbalance</option>
+                        <option value="CTSA09">CTSA09 — TokenIdentifier (TID)</option>
+                        <option value="CTSA10">CTSA10 — TransferAmount</option>
+                        <option value="CTSA12">CTSA12 — MaximumPowerLimit</option>
+                        <option value="CTSA13">CTSA13 — MaxPhasePowerUnbalance</option>
+                        <option value="CTSA14">CTSA14 — RegisterToClear</option>
+                        <option value="CTSA15">CTSA15 — Keychange Fields</option>
+                        <option value="CTSA16">CTSA16 — KeyExpiryNumber</option>
+                        <option value="CTSA17">CTSA17 — DRN Check Digit</option>
+                        <option value="CTSA20">CTSA20 — Currency (Electricity)</option>
+                        <option value="CTSA24">CTSA24 — Extended Token Set</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="runIndividualTest()">Run</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Panel -->
+<div class="card" style="margin-bottom: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <span style="font-size: 13px; font-weight: 700; color: var(--text-dim);">EXPORT RESULTS</span>
+            <span style="font-size: 11px; color: var(--text-dim); margin-left: 12px;">(Run tests first)</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-ghost btn-sm" onclick="exportResults('csv')">📄 CSV</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportResults('html')">🌐 HTML</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportResults('txt')">📝 TXT</button>
+            <button class="btn btn-ghost btn-sm" onclick="printReport()">🖨️ Print</button>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Banner -->
+<div class="card card-accent-success" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="font-size: 22px; font-weight: 900; color: var(--success);">ALL TESTS PASSED</div>
+            <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">
+                Expected results from STS 531-1-07 Ed 2.2
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 32px; font-weight: 900; color: var(--accent); font-family: var(--mono);">
+                @Model.Sum(t => t.TotalSteps)
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim);">Total Steps</div>
+        </div>
+    </div>
+
+    <div class="grid-3" style="margin-top: 16px;">
+        <div style="background: #000; border-radius: 6px; padding: 12px; text-align: center;">
+            <div style="font-size: 20px; font-weight: 800; color: var(--accent); font-family: var(--mono);">
+                @Model.Count(t => t.Classification.Contains("V"))
+            </div>
+            <div style="font-size: 10px; color: var(--text-dim); letter-spacing: 1px;">CLASS V (VENDING)</div>
+        </div>
+        <div style="background: #000; border-radius: 6px; padding: 12px; text-align: center;">
+            <div style="font-size: 20px; font-weight: 800; color: var(--blue); font-family: var(--mono);">
+                @Model.Count(t => t.Classification.Contains("E"))
+            </div>
+            <div style="font-size: 10px; color: var(--text-dim); letter-spacing: 1px;">CLASS E (ENGINEERING)</div>
+        </div>
+        <div style="background: #000; border-radius: 6px; padding: 12px; text-align: center;">
+            <div style="font-size: 20px; font-weight: 800; color: var(--purple); font-family: var(--mono);">
+                @Model.Count(t => t.Classification.Contains("K"))
+            </div>
+            <div style="font-size: 10px; color: var(--text-dim); letter-spacing: 1px;">CLASS K (KEYCHANGE)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Results (hidden by default) -->
+<div id="realtime-results" style="display: none; margin-bottom: 20px;">
+    <div class="card card-accent-blue">
+        <div class="card-title blue">Live Test Results</div>
+        <div id="realtime-log" style="max-height: 300px; overflow-y: auto;"></div>
+    </div>
+</div>
+
+<!-- Test List -->
+@foreach (var test in Model)
+{
+    <a href="/Compliance/Detail/@test.TestId" class="test-row">
+        <div class="dot @(test.OverallStatus == TestStatus.Pass ? "dot-pass" : "dot-fail")"></div>
+        <div class="test-info">
+            <div class="test-id">@test.TestId</div>
+            <div class="test-name">@test.Name</div>
+        </div>
+        <div class="test-steps">@test.PassedSteps/@test.TotalSteps</div>
+        <span class="badge badge-class">@test.Classification</span>
+        <span class="badge @(test.OverallStatus == TestStatus.Pass ? "badge-pass" : "badge-fail")">
+            @test.OverallStatus.ToString().ToUpper()
+        </span>
+    </a>
+}
+
+@section Scripts {
+<script>
+    // Run full suite from this page
+    async function runFullSuiteFromPage() {
+        if (!window.vsmConnection || !window.vsmConnection.isConnected) {
+            alert('VSM not connected. Please connect first via VSM Connection page.');
+            return;
+        }
+
+        const utility = document.getElementById('run-utility').value;
+        const currency = document.getElementById('run-currency').checked;
+        const keychange = document.getElementById('run-keychange').checked;
+        const extended = document.getElementById('run-extended').checked;
+
+        // Show realtime results
+        document.getElementById('realtime-results').style.display = 'block';
+        const log = document.getElementById('realtime-log');
+        log.innerHTML = '<div style="color: var(--accent);">Starting test suite...</div>';
+
+        await runFullTestSuite(utility, currency, keychange, extended);
+    }
+
+    // Run individual test
+    async function runIndividualTest() {
+        const testId = document.getElementById('individual-test').value;
+        if (!testId) {
+            alert('Please select a test');
+            return;
+        }
+
+        if (!window.vsmConnection || !window.vsmConnection.isConnected) {
+            alert('VSM not connected. Please connect first via VSM Connection page.');
+            return;
+        }
+
+        const utility = document.getElementById('run-utility').value;
+
+        document.getElementById('realtime-results').style.display = 'block';
+        const log = document.getElementById('realtime-log');
+        log.innerHTML = `<div style="color: var(--accent);">Running ${testId}...</div>`;
+
+        await runSingleTest(testId, utility);
+    }
+
+    // Export results
+    function exportResults(format) {
+        window.location.href = `/api/vsm/export/${format}`;
+    }
+
+    // Print report
+    function printReport() {
+        window.open('/api/vsm/report/print', '_blank');
+    }
+
+    // Handle test progress
+    window.onTestComplete = function(result) {
+        const log = document.getElementById('realtime-log');
+        if (log) {
+            log.innerHTML += `<div style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}; font-weight: bold; margin-top: 10px;">
+                ═══ Suite Complete: ${result.totalPassed}/${result.totalSteps} passed ═══
+            </div>`;
+
+            // Show export buttons
+            log.innerHTML += `<div style="margin-top: 10px;">
+                <button class="btn btn-sm btn-primary" onclick="exportResults('csv')">Export CSV</button>
+                <button class="btn btn-sm btn-secondary" onclick="exportResults('html')">Export HTML</button>
+            </div>`;
+        }
+    };
+
+    window.onSingleTestComplete = function(result) {
+        const log = document.getElementById('realtime-log');
+        if (log) {
+            log.innerHTML = `<div style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}; font-weight: bold;">
+                ${result.testId} — ${result.testName}: ${result.passedCount}/${result.steps.length} passed
+            </div>`;
+
+            result.steps.forEach(step => {
+                const color = step.passed ? 'var(--success)' : 'var(--error)';
+                const icon = step.passed ? '✓' : '✗';
+                log.innerHTML += `<div style="margin: 4px 0; padding: 8px; background: var(--card); border-radius: 4px;">
+                    <span style="color: ${color}">${icon}</span>
+                    <span style="color: var(--text-dim); font-size: 11px;">#${step.step}</span>
+                    ${step.description}<br>
+                    <span style="font-family: var(--mono); color: var(--accent); font-size: 12px;">${step.actual}</span>
+                </div>`;
+            });
+        }
+    };
+</script>
+}

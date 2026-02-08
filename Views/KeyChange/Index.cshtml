@@ -1,0 +1,102 @@
+@model KeyChangeRequest
+@{ ViewData["Title"] = "Key Change"; }
+
+<div class="page-header">
+    <h2>Key Change</h2>
+    <div class="subtitle">CTSA05 — Generate Keychange Token Set</div>
+</div>
+
+<form asp-controller="KeyChange" asp-action="Generate" method="post">
+    <div class="grid-2">
+        <!-- Current Key -->
+        <div class="card card-accent-warn">
+            <div class="card-title warn">Current Key (Initial)</div>
+            <div class="form-group">
+                <label>SGC</label>
+                <input type="text" class="form-control" name="InitialSGC" value="@Model.InitialSGC" />
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>KRN</label>
+                    <input type="number" class="form-control" name="InitialKRN" value="@Model.InitialKRN" />
+                </div>
+                <div class="form-group">
+                    <label>TI</label>
+                    <input type="number" class="form-control" name="InitialTI" value="@Model.InitialTI" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Base Date</label>
+                    <input type="number" class="form-control" name="InitialBaseDate" value="@Model.InitialBaseDate" />
+                </div>
+                <div class="form-group">
+                    <label>KEN</label>
+                    <input type="number" class="form-control" name="InitialKEN" value="@Model.InitialKEN" />
+                </div>
+            </div>
+            <div class="info-row">
+                <span class="label">Rollover Bit</span>
+                <span class="value mono">0</span>
+            </div>
+        </div>
+
+        <!-- New Key -->
+        <div class="card card-accent-green">
+            <div class="card-title green">New Key Configuration</div>
+            <div class="form-group">
+                <label>SGC</label>
+                <input type="text" class="form-control" name="NewSGC" value="@Model.NewSGC" />
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>KRN</label>
+                    <input type="number" class="form-control" name="NewKRN" value="@Model.NewKRN" />
+                </div>
+                <div class="form-group">
+                    <label>TI</label>
+                    <input type="number" class="form-control" name="NewTI" value="@Model.NewTI" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Base Date</label>
+                    <input type="number" class="form-control" name="NewBaseDate" value="@Model.NewBaseDate" />
+                </div>
+                <div class="form-group">
+                    <label>KEN</label>
+                    <input type="number" class="form-control" name="NewKEN" value="@Model.NewKEN" />
+                </div>
+            </div>
+            <div class="info-row">
+                <span class="label">Rollover Bit</span>
+                <span class="value mono">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meter Info -->
+    <div class="card card-accent-blue">
+        <div class="card-title blue">Meter</div>
+        <div class="grid-3">
+            <div class="form-group">
+                <label>MeterPAN</label>
+                <input type="text" class="form-control" name="MeterPAN" value="@Model.MeterPAN" />
+            </div>
+            <div class="info-row" style="align-self: end; padding-bottom: 14px;">
+                <span class="label">TCT</span>
+                <span class="value mono">01, 02</span>
+            </div>
+            <div class="info-row" style="align-self: end; padding-bottom: 14px;">
+                <span class="label">EA</span>
+                <span class="value mono">07</span>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 12px;">
+        <button type="submit" class="btn btn-primary" style="padding: 14px 40px;">
+            🔑 GENERATE KEYCHANGE SET
+        </button>
+    </div>
+</form>

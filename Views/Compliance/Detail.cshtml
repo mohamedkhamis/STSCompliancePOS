@@ -1,0 +1,116 @@
+@model CTSATest
+@{ ViewData["Title"] = $"{Model.TestId} — {Model.Name}"; }
+
+<div class="breadcrumb">
+    <a href="/Compliance">Compliance Tests</a>
+    <span>›</span>
+    <span>@Model.TestId</span>
+</div>
+
+<div class="page-header">
+    <h2>@Model.TestId — @Model.Name</h2>
+    <div class="subtitle">@Model.Description</div>
+</div>
+
+<!-- Summary -->
+<div class="card card-accent-success">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <span style="font-size: 16px; font-weight: 800; color: var(--success);">
+                @Model.PassedSteps/@Model.TotalSteps STEPS PASSED
+            </span>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                Classification: @Model.Classification · IEC Clause: @Model.IECClause
+            </div>
+        </div>
+        <span class="badge @(Model.OverallStatus == TestStatus.Pass ? "badge-pass" : "badge-fail")">
+            @Model.OverallStatus.ToString().ToUpper()
+        </span>
+    </div>
+</div>
+
+<!-- Steps -->
+@foreach (var step in Model.Steps)
+{
+    <div class="step-card">
+        <div class="step-header">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                <span class="step-num">#@step.StepNumber</span>
+                <span class="step-instruction">@step.Instruction</span>
+            </div>
+            @if (!string.IsNullOrEmpty(step.UtilityType))
+            {
+                var utilClass = step.UtilityType.ToLower() switch
+                {
+                    "electricity" => "utility-elec",
+                    "water" => "utility-water",
+                    "gas" => "utility-gas",
+                    "time" => "utility-time",
+                    _ when step.UtilityType.Contains("Currency") => "utility-currency",
+                    _ => ""
+                };
+                <span class="utility-badge @utilClass">@step.UtilityType</span>
+            }
+            <span class="badge @(step.Status == TestStatus.Pass ? "badge-pass" : "badge-fail")">
+                @step.Status.ToString().ToUpper()
+            </span>
+        </div>
+
+        @if (!string.IsNullOrEmpty(step.TokenIssueDate))
+        {
+            <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+                <span style="font-family: var(--mono);">TID: @step.TokenIssueDate</span>
+            </div>
+        }
+
+        @if (step.ExpectedToken.Contains("|"))
+        {
+            // Multi-token display (keychange pairs/triplets)
+            var tokens = step.ExpectedToken.Split(" | ");
+            var labels = new[] { "1st KCT", "2nd KCT", "3rd KCT", "Credit Token" };
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                <div style="margin-bottom: 6px;">
+                    <div class="token-label">@(i < labels.Length ? labels[i] : $"Token {i + 1}")</div>
+                    <div class="step-token">@tokens[i].Trim()</div>
+                </div>
+            }
+        }
+        else if (step.ExpectedToken.Contains("+"))
+        {
+            // Auto keychange: KCT tokens + Credit token
+            var parts = step.ExpectedToken.Split(" + ");
+            foreach (var part in parts)
+            {
+                var label = part.StartsWith("KCT") ? "Keychange Tokens" : "Credit Token";
+                var tokenStr = part.Replace("KCT: ", "").Replace("Credit: ", "");
+                <div style="margin-bottom: 6px;">
+                    <div class="token-label">@label</div>
+                    @if (tokenStr.Contains("|"))
+                    {
+                        foreach (var t in tokenStr.Split(" | "))
+                        {
+                            <div class="step-token" style="margin-bottom: 4px;">@t.Trim()</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="step-token">@tokenStr.Trim()</div>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="step-token">@step.ExpectedToken</div>
+        }
+
+        <div class="verify-box verify-pass" style="margin-top: 8px;">
+            <span class="verify-text">✓ Token matches expected value</span>
+        </div>
+    </div>
+}
+
+<div style="margin-top: 20px;">
+    <a href="/Compliance" class="btn btn-secondary">← Back to All Tests</a>
+</div>

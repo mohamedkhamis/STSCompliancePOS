@@ -1,0 +1,124 @@
+@model VendRequest
+@{ ViewData["Title"] = "Vend Token"; }
+
+<div class="page-header">
+    <h2>Vend TransferCredit Token</h2>
+    <div class="subtitle">CTSA01 — Generate and verify STS tokens</div>
+</div>
+
+<form asp-controller="Vending" asp-action="Generate" method="post">
+    <div class="grid-2">
+        <!-- APDU Parameters -->
+        <div class="card card-accent-blue">
+            <div class="card-title blue">APDU Parameters</div>
+
+            <div class="form-group">
+                <label>MeterPAN</label>
+                <input type="text" class="form-control" name="MeterPAN" value="@Model.MeterPAN" />
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>SGC</label>
+                    <input type="text" class="form-control" name="SGC" value="@Model.SGC" />
+                </div>
+                <div class="form-group">
+                    <label>Base Date</label>
+                    <select class="form-control" name="BaseDate">
+                        <option value="2014" selected>2014</option>
+                        <option value="2035">2035</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <div class="form-group">
+                    <label>KRN</label>
+                    <input type="number" class="form-control" name="KRN" value="@Model.KRN" />
+                </div>
+                <div class="form-group">
+                    <label>TI</label>
+                    <input type="number" class="form-control" name="TI" value="@Model.TI" />
+                </div>
+                <div class="form-group">
+                    <label>KT</label>
+                    <input type="text" class="form-control" value="2" disabled />
+                </div>
+            </div>
+
+            <div class="info-row">
+                <span class="label">DKGA / EA</span>
+                <span class="value mono">04 / 07</span>
+            </div>
+            <div class="info-row">
+                <span class="label">KEN</span>
+                <span class="value mono">255 (0xFF)</span>
+            </div>
+            <div class="info-row">
+                <span class="label">VUDK</span>
+                <span class="value mono" style="font-size: 10px;">ABABABABABABABAB9494..0123456716</span>
+            </div>
+        </div>
+
+        <!-- Token Request -->
+        <div>
+            <div class="card card-accent-green">
+                <div class="card-title green">Token Request</div>
+
+                <div class="form-group">
+                    <label>Token Type</label>
+                    <select class="form-control" name="TokenType">
+                        <option>TransferCredit</option>
+                        <option>ClearCredit</option>
+                        <option>SetMaximumPowerLimit</option>
+                        <option>ClearTamperCondition</option>
+                        <option>SetMaxPhasePowerUnbalanceLimit</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Utility Type</label>
+                    <select class="form-control" name="UtilityType">
+                        <option value="Electricity">Electricity (kWh)</option>
+                        <option value="Water">Water (kl)</option>
+                        <option value="Gas">Gas (m³)</option>
+                        <option value="Time">Time (min)</option>
+                    </select>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="text" class="form-control" name="Amount" value="0.1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Unit</label>
+                        <input type="text" class="form-control" name="Unit" value="kWh" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Token Issue Date</label>
+                    <input type="datetime-local" class="form-control" name="TokenIssueDate"
+                           value="2014-03-01T13:00:00" />
+                </div>
+
+                <div class="info-row">
+                    <span class="label">RND (Fixed for test)</span>
+                    <span class="value mono">5</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; text-align: center; padding: 14px;">
+                ⚡ GENERATE TOKEN
+            </button>
+
+            <div class="card" style="background: #000; border-color: rgba(0,212,170,0.2); margin-top: 16px;">
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">IDRecord (TCT=01)</div>
+                <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 1px;">
+                    600727000000000009===0107201457011
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

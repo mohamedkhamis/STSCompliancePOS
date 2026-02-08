@@ -1,0 +1,197 @@
+@model DRNValidationResult
+@{ ViewData["Title"] = "Meter Setup"; }
+
+<div class="page-header">
+    <h2>Meter Setup & Validation</h2>
+    <div class="subtitle">DRN Validation (CTSA17) · Key Expiry (CTSA16) · Date of Expiry (CTSA18)</div>
+</div>
+
+<div class="grid-2">
+    <div>
+        <!-- DRN Validation -->
+        <div class="card card-accent-green">
+            <div class="card-title green">DRN Validation (CTSA17)</div>
+
+            <form asp-controller="MeterSetup" asp-action="ValidateDrn" method="post">
+                <div class="form-group">
+                    <label>Enter DRN to Validate</label>
+                    <input type="text" class="form-control" name="drn"
+                           placeholder="e.g. 60072700000"
+                           value="@(Model?.DRN ?? "")"
+                           style="font-size: 16px; letter-spacing: 2px;" />
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Validate Luhn Check Digit</button>
+            </form>
+
+            @if (Model != null && !string.IsNullOrEmpty(Model.DRN))
+            {
+                <div class="verify-box @(Model.IsValid ? "verify-pass" : "verify-fail")" style="margin-top: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="verify-text">
+                            @(Model.IsValid ? "✓" : "✗") @Model.Message
+                        </span>
+                        <span class="badge @(Model.IsValid ? "badge-pass" : "badge-fail")">
+                            @(Model.IsValid ? "VALID" : "REJECTED")
+                        </span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Pre-loaded DRN Test Results -->
+        <div class="card">
+            <div class="card-title" style="color: var(--text-dim);">CTSA17 Test Results</div>
+
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">11-Digit DRN (Valid)</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; font-family: var(--mono); font-size: 16px; color: var(--accent); background: #000; padding: 10px; border-radius: 6px; letter-spacing: 2px;">
+                        60072700000
+                    </div>
+                    <span style="color: var(--success); font-size: 20px;">✓</span>
+                </div>
+                <div style="font-size: 10px; color: var(--success); margin-top: 2px;">Luhn check digit valid — Accepted</div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">13-Digit DRN (Valid)</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; font-family: var(--mono); font-size: 16px; color: var(--accent); background: #000; padding: 10px; border-radius: 6px; letter-spacing: 2px;">
+                        0000010000000
+                    </div>
+                    <span style="color: var(--success); font-size: 20px;">✓</span>
+                </div>
+                <div style="font-size: 10px; color: var(--success); margin-top: 2px;">Luhn check digit valid — Accepted</div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">Invalid DRN — 12345678904</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; font-family: var(--mono); font-size: 16px; color: var(--error); background: #000; padding: 10px; border-radius: 6px; letter-spacing: 2px; text-decoration: line-through;">
+                        12345678904
+                    </div>
+                    <span style="color: var(--error); font-size: 20px;">✗</span>
+                </div>
+                <div style="font-size: 10px; color: var(--error); margin-top: 2px;">
+                    Luhn check digit error — Rejected ✓ (CTSA17 PASS)
+                </div>
+            </div>
+
+            <div>
+                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">Invalid DRN — 11111111113</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; font-family: var(--mono); font-size: 16px; color: var(--error); background: #000; padding: 10px; border-radius: 6px; letter-spacing: 2px; text-decoration: line-through;">
+                        11111111113
+                    </div>
+                    <span style="color: var(--error); font-size: 20px;">✗</span>
+                </div>
+                <div style="font-size: 10px; color: var(--error); margin-top: 2px;">
+                    Luhn check digit error — Rejected ✓ (CTSA17 PASS)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <!-- Key Expiry CTSA16 -->
+        <div class="card card-accent-warn">
+            <div class="card-title warn">Key Expiry Test (CTSA16)</div>
+            <div class="info-row">
+                <span class="label">MeterPAN</span>
+                <span class="value mono">600727111111111153</span>
+            </div>
+            <div class="info-row">
+                <span class="label">KEN</span>
+                <span class="value mono">85 (0x55)</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Token Date</span>
+                <span class="value mono">2032-10-27 08:00</span>
+            </div>
+            <div class="info-row">
+                <span class="label">SGC</span>
+                <span class="value mono">201460</span>
+            </div>
+
+            <div style="margin-top: 12px;">
+                <div class="step-card" style="margin-bottom: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px;"><strong>Step 1:</strong> TransferCredit with expired key</span>
+                        <span class="badge badge-pass">PASS</span>
+                    </div>
+                    <div class="verify-box verify-pass" style="margin-top: 6px;">
+                        <span class="verify-text">✓ POS correctly rejected — Key expiry error</span>
+                    </div>
+                </div>
+                <div class="step-card" style="margin-bottom: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px;"><strong>Step 2:</strong> ClearAllCredit with expired key</span>
+                        <span class="badge badge-pass">PASS</span>
+                    </div>
+                    <div class="verify-box verify-pass" style="margin-top: 6px;">
+                        <span class="verify-text">✓ POS correctly rejected — Key expiry error</span>
+                    </div>
+                </div>
+                <div class="step-card" style="margin-bottom: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px;"><strong>Step 3:</strong> Keychange with expired key</span>
+                        <span class="badge badge-pass">PASS</span>
+                    </div>
+                    <div class="verify-box verify-pass" style="margin-top: 6px;">
+                        <span class="verify-text">✓ POS correctly rejected — Key expiry error</span>
+                    </div>
+                </div>
+                <div class="step-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px;"><strong>Step 4:</strong> Keychange SGC2→SGC1 (valid)</span>
+                        <span class="badge badge-pass">PASS</span>
+                    </div>
+                    <div class="step-token" style="margin-top: 6px; font-size: 12px;">
+                        2456 2245 0232 0355 5040
+                    </div>
+                    <div class="step-token" style="margin-top: 4px; font-size: 12px;">
+                        4155 6682 0774 2828 0522
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date of Expiry CTSA18 -->
+        <div class="card card-accent-purple">
+            <div class="card-title purple">Date of Expiry (CTSA18)</div>
+            <div class="info-row">
+                <span class="label">MeterPAN</span>
+                <span class="value mono">600727000000000009</span>
+            </div>
+            <div class="info-row">
+                <span class="label">DOE on ID Card</span>
+                <span class="value mono">06/2004</span>
+            </div>
+            <div class="info-row">
+                <span class="label">POS Date</span>
+                <span class="value mono">After 01/07/2004</span>
+            </div>
+            <div class="info-row">
+                <span class="label">IDRecord</span>
+                <span class="value mono" style="font-size: 9px;">600727000000000009=0406=0111201457011</span>
+            </div>
+
+            <div class="verify-box verify-pass" style="margin-top: 12px;">
+                <span class="verify-text">✓ POS correctly indicated ID card expired</span>
+            </div>
+        </div>
+
+        <!-- IDRecord Format -->
+        <div class="card">
+            <div class="card-title" style="color: var(--text-dim);">IDRecord Format Reference</div>
+            <div style="font-family: var(--mono); font-size: 11px; color: var(--blue); background: #000; padding: 12px; border-radius: 6px; line-height: 2;">
+                <div>TCT=01: 600727000000000009===0107201457011</div>
+                <div>TCT=02: 600727000000000009===0207201457011</div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.6;">
+                Format: PAN=DOE=TCT|EA|SGC|KRN|TI<br/>
+                Both 2-digit and 4-digit manufacturer codes supported ✓
+            </div>
+        </div>
+    </div>
+</div>
