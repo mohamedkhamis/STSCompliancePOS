@@ -17,6 +17,7 @@ builder.Services.AddSingleton<STSTestDataService>();
 builder.Services.AddSingleton<VSMConnectionService>();
 builder.Services.AddSingleton<TestResultsStore>();
 builder.Services.AddScoped<ComplianceTestService>();
+builder.Services.AddScoped<ComplianceTestServiceEA11>();
 builder.Services.AddScoped<ReportService>();
 
 var app = builder.Build();

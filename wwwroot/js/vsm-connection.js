@@ -150,7 +150,7 @@ async function disconnectVSM() {
 }
 
 // Run full test suite via SignalR
-async function runFullTestSuite(utilityType, includeCurrency, includeKeychange, includeExtended) {
+async function runFullTestSuite(utilityType, includeCurrency, includeKeychange, includeExtended, ea) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
@@ -158,28 +158,28 @@ async function runFullTestSuite(utilityType, includeCurrency, includeKeychange, 
 
     try {
         await window.vsmConnection.hub.invoke("RunFullSuite",
-            utilityType, includeCurrency, includeKeychange, includeExtended);
+            utilityType, includeCurrency, includeKeychange, includeExtended, ea || 7);
     } catch (err) {
         console.error("[VSM] RunFullSuite error:", err);
     }
 }
 
 // Run single test via SignalR
-async function runSingleTest(testId, utilityType) {
+async function runSingleTest(testId, utilityType, ea) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
     }
 
     try {
-        await window.vsmConnection.hub.invoke("RunTest", testId, utilityType);
+        await window.vsmConnection.hub.invoke("RunTest", testId, utilityType, ea || 7);
     } catch (err) {
         console.error("[VSM] RunTest error:", err);
     }
 }
 
 // Generate single token via SignalR
-async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate) {
+async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate, ea) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
@@ -187,7 +187,7 @@ async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDa
 
     try {
         await window.vsmConnection.hub.invoke("GenerateToken",
-            pan, reg, ti, creditType, amount, issueDate, baseDate);
+            pan, reg, ti, creditType, amount, issueDate, baseDate, ea || 7);
     } catch (err) {
         console.error("[VSM] GenerateToken error:", err);
     }

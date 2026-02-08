@@ -279,6 +279,49 @@ namespace STSCompliancePOS.Services
             return (null, null);
         }
 
+        // SM?VK quad variant (4 KCTs for EA=11)
+        public (string, string, string, string) GenerateKeychangeQuad(string pan,
+            string oldReg, string newReg,
+            string oldSgc, string newSgc,
+            string oldTi, string newTi,
+            char oldKrn, char newKrn,
+            int oldKen, int newKen,
+            char rolloverBit)
+        {
+            int oldRegNum = int.Parse(oldReg);
+            int newRegNum = int.Parse(newReg);
+            int tiOldNum = int.Parse(oldTi);
+            int tiNewNum = int.Parse(newTi);
+
+            string payload = PtvdN(oldRegNum) +
+                             PtvdN(newRegNum) +
+                             PtvdP(pan) +
+                             PtvdN(tiOldNum) +
+                             PtvdN(EA) +
+                             PtvdN(TCT) +
+                             PtvdN(tiNewNum) +
+                             PtvdN(4); // quad for EA11
+
+            string response = SendCommand("SM?VK", payload);
+            if (response == null) return (null, null, null, null);
+
+            string[] fields = ParsePtvdFields(response);
+            if (fields.Length >= 4)
+            {
+                string tokensDec = fields[3];
+                if (tokensDec.Length >= 80)
+                {
+                    return (tokensDec.Substring(0, 20),
+                            tokensDec.Substring(20, 20),
+                            tokensDec.Substring(40, 20),
+                            tokensDec.Substring(60, 20));
+                }
+            }
+
+            LastError = "Unexpected SM!VK quad response format";
+            return (null, null, null, null);
+        }
+
         // SM?VK triplet variant (3 KCTs)
         public (string, string, string) GenerateKeychangeTriplet(string pan,
             string oldReg, string newReg,

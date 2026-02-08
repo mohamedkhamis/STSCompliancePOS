@@ -180,6 +180,14 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label>Encryption Algorithm (EA)</label>
+                <select class="form-control" id="test-ea">
+                    <option value="7">EA07 (STS 531-1-07)</option>
+                    <option value="11">EA11 (STS 531-1-11)</option>
+                </select>
+            </div>
+
             <button class="btn btn-primary" style="width: 100%;" onclick="quickTokenTest()">
                 ⚡ Generate Token
             </button>
@@ -268,6 +276,14 @@
             </select>
         </div>
         <div class="form-group">
+            <label>Encryption Algorithm</label>
+            <select class="form-control" id="suite-ea">
+                <option value="7">EA07 (STS 531-1-07)</option>
+                <option value="11">EA11 (STS 531-1-11)</option>
+                <option value="both">Both EA07 + EA11 (160 tests)</option>
+            </select>
+        </div>
+        <div class="form-group">
             <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
                 <input type="checkbox" id="suite-currency" /> Include Currency
             </label>
@@ -277,15 +293,24 @@
                 <input type="checkbox" id="suite-keychange" /> Include Keychange
             </label>
         </div>
+    </div>
+    <div class="grid-2" style="margin-bottom: 14px;">
         <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+            <label style="display: flex; align-items: center; gap: 6px;">
                 <input type="checkbox" id="suite-extended" /> Extended (STS202-5)
             </label>
+        </div>
+        <div class="info-row">
+            <span class="label">POS Report</span>
+            <span class="value mono" style="color: var(--accent);">Total: 160 tests (80×EA07 + 80×EA11)</span>
         </div>
     </div>
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
         <button class="btn btn-primary" onclick="runFullSuite()">
-            🧪 Run Full Compliance Suite
+            🧪 Run Compliance Suite
+        </button>
+        <button class="btn btn-primary" style="background: var(--warn);" onclick="runFullPOS()">
+            📋 Run All 160 POS Tests
         </button>
         <button class="btn btn-secondary" onclick="exportResults('csv')">
             📄 Export CSV
@@ -331,8 +356,9 @@
         const amount = parseFloat(document.getElementById('test-amount').value);
         const dateStr = document.getElementById('test-date').value;
         const bd = parseInt(document.getElementById('test-bd').value);
+        const ea = parseInt(document.getElementById('test-ea').value);
 
-        await generateToken(pan, reg, ti, ct, amount, dateStr, bd);
+        await generateToken(pan, reg, ti, ct, amount, dateStr, bd, ea);
     }
 
     // Handle token received
@@ -379,8 +405,64 @@
         const currency = document.getElementById('suite-currency').checked;
         const keychange = document.getElementById('suite-keychange').checked;
         const extended = document.getElementById('suite-extended').checked;
+        const eaSelect = document.getElementById('suite-ea').value;
 
-        await runFullTestSuite(utility, currency, keychange, extended);
+        if (eaSelect === 'both') {
+            // Run both suites sequentially
+            await runFullPOS();
+            return;
+        }
+
+        const ea = parseInt(eaSelect);
+        await runFullTestSuite(utility, currency, keychange, extended, ea);
+    }
+
+    // Run all 160 POS tests (EA07 + EA11)
+    async function runFullPOS() {
+        if (!window.vsmConnection.isConnected) {
+            alert('VSM not connected. Please connect first.');
+            return;
+        }
+
+        const utility = document.getElementById('suite-utility').value;
+        const currency = document.getElementById('suite-currency').checked;
+        const keychange = document.getElementById('suite-keychange').checked;
+        const extended = document.getElementById('suite-extended').checked;
+        const log = document.getElementById('progress-log');
+
+        log.innerHTML += '<div class="log-entry" style="color: var(--accent);">═══ Running ALL 160 POS Tests (EA07 + EA11) ═══</div>';
+
+        try {
+            const response = await fetch('/api/vsm/run-full-pos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    utilityType: utility,
+                    includeCurrency: currency,
+                    includeKeychange: keychange,
+                    includeExtended: extended
+                })
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                const color = result.allPassed ? 'var(--success)' : 'var(--error)';
+                log.innerHTML += `<div class="log-entry" style="color: ${color}">
+                    ═══ EA07: ${result.ea07Result.totalPassed}/${result.ea07Result.totalSteps} passed ═══
+                </div>`;
+                log.innerHTML += `<div class="log-entry" style="color: ${color}">
+                    ═══ EA11: ${result.ea11Result.totalPassed}/${result.ea11Result.totalSteps} passed ═══
+                </div>`;
+                log.innerHTML += `<div class="log-entry" style="color: ${color}; font-weight: bold;">
+                    ═══ TOTAL: ${result.totalPassed}/${result.totalTests} passed ═══
+                </div>`;
+            } else {
+                log.innerHTML += `<div class="log-entry" style="color: var(--error)">Error: ${result.error || 'Unknown'}</div>`;
+            }
+        } catch (e) {
+            log.innerHTML += `<div class="log-entry" style="color: var(--error)">Error: ${e.message}</div>`;
+        }
+        log.scrollTop = log.scrollHeight;
     }
 
     // Handle test complete
