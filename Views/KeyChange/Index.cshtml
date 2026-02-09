@@ -1,6 +1,17 @@
 @inject STSCompliancePOS.Services.VSMConfiguration Config
 @{ ViewData["Title"] = "Key Change"; }
 
+<!-- Toast Notification -->
+<div id="toast-notification" style="display: none; position: fixed; top: 24px; right: 24px; z-index: 9999; min-width: 320px; padding: 16px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 1px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: opacity 0.3s, transform 0.3s; transform: translateY(-10px); opacity: 0;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="toast-icon" style="font-size: 24px;"></span>
+        <div>
+            <div id="toast-title" style="font-size: 16px;"></div>
+            <div id="toast-detail" style="font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.8;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="page-header">
     <h2>Key Change</h2>
     <div class="subtitle">Generate real Keychange Token Sets via VSM hardware</div>
@@ -199,6 +210,21 @@
             errorDiv.style.display = 'block';
             resultDiv.style.display = 'none';
             summaryDiv.style.display = 'none';
+
+            // Log error to test log
+            const errPan = document.getElementById('kc-pan').value;
+            const errEa = parseInt(document.getElementById('kc-ea').value);
+            logTokenTest(
+                'KeyChange', errEa, 'management', errPan,
+                document.getElementById('kc-old-reg').value,
+                document.getElementById('kc-old-ti').value,
+                null, null,
+                'KeyChange', null,
+                null, null,
+                null, null, false
+            );
+
+            showKcToast(false, 'KeyChange Failed', result.error);
             return;
         }
 
@@ -224,6 +250,27 @@
         resultDiv.style.display = 'block';
         errorDiv.style.display = 'none';
 
+        // Log each KCT to test log
+        const pan = document.getElementById('kc-pan').value;
+        const kctLabels = ['Set1stSectionDecoderKey', 'Set2ndSectionDecoderKey', 'Set3rdSectionDecoderKey', 'Set4thSectionDecoderKey'];
+        const kctTokens = [result.firstKCT, result.secondKCT, result.thirdKCT, result.fourthKCT];
+        for (let i = 0; i < kctTokens.length; i++) {
+            if (kctTokens[i]) {
+                logTokenTest(
+                    kctLabels[i], ea, 'management', pan,
+                    document.getElementById('kc-old-reg').value,
+                    document.getElementById('kc-old-ti').value,
+                    null, null,
+                    'KeyChange', i + 1,
+                    null, null,
+                    null, kctTokens[i], true
+                );
+            }
+        }
+
+        // Show success toast
+        showKcToast(true, `${hasQuad ? '4' : '2'} KCTs Generated`, `EA${ea === 11 ? '11' : '07'} \u2014 ${pan}`);
+
         // Show migration summary
         const oldReg = document.getElementById('kc-old-reg');
         const newReg = document.getElementById('kc-new-reg');
@@ -234,6 +281,25 @@
         document.getElementById('kc-sum-count').textContent = hasQuad ? '4 (Quad — EA11)' : '2 (Pair — EA07)';
         summaryDiv.style.display = 'block';
     };
+
+    function showKcToast(success, title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+        toast.style.border = success ? '2px solid rgba(16,185,129,0.5)' : '2px solid rgba(239,68,68,0.5)';
+        toast.style.color = success ? 'var(--success)' : 'var(--error)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
 
     // Update connection banner on status change
     window.addEventListener('vsmStatusChanged', (e) => {

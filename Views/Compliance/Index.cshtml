@@ -1,6 +1,17 @@
 @model List<CTSATest>
 @{ ViewData["Title"] = "Compliance Test Suite"; }
 
+<!-- Toast Notification -->
+<div id="toast-notification" style="display: none; position: fixed; top: 24px; right: 24px; z-index: 9999; min-width: 320px; padding: 16px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 1px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: opacity 0.3s, transform 0.3s; transform: translateY(-10px); opacity: 0;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="toast-icon" style="font-size: 24px;"></span>
+        <div>
+            <div id="toast-title" style="font-size: 16px;"></div>
+            <div id="toast-detail" style="font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.8;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="page-header">
     <h2>Compliance Test Suite</h2>
     <div class="subtitle">STS 531-1-07 Edition 2.2 · DKGA04/EA07 · @Model.Count Tests · @Model.Sum(t => t.TotalSteps) Steps</div>
@@ -211,12 +222,32 @@
         window.open('/api/vsm/report/print', '_blank');
     }
 
+    function showCompToast(success, title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+        toast.style.border = success ? '2px solid rgba(16,185,129,0.5)' : '2px solid rgba(239,68,68,0.5)';
+        toast.style.color = success ? 'var(--success)' : 'var(--error)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
     // Handle test progress
     window.onTestComplete = function(result) {
         const log = document.getElementById('realtime-log');
         if (log) {
             log.innerHTML += `<div style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}; font-weight: bold; margin-top: 10px;">
-                ═══ Suite Complete: ${result.totalPassed}/${result.totalSteps} passed ═══
+                \u2550\u2550\u2550 Suite Complete: ${result.totalPassed}/${result.totalSteps} passed \u2550\u2550\u2550
             </div>`;
 
             // Show export buttons
@@ -225,26 +256,62 @@
                 <button class="btn btn-sm btn-secondary" onclick="exportResults('html')">Export HTML</button>
             </div>`;
         }
+
+        // Log each step result to SQLite
+        if (result.stepResults) {
+            result.stepResults.forEach(step => {
+                logTokenTest(step.testVectorId || result.testId, step.ea || 7, step.category || 'credit',
+                    step.pan || '', step.register || null, step.ti || null,
+                    step.creditType || null, step.amount || null,
+                    step.mgmtType || null, step.mgmtValue || null,
+                    step.issueDate || null, step.baseDate || null,
+                    step.expected || null, step.actual || null, step.passed);
+            });
+        }
+
+        showCompToast(result.allPassed,
+            result.allPassed ? 'ALL TESTS PASSED' : 'TESTS FAILED',
+            `${result.totalPassed}/${result.totalSteps} passed`);
+
+        alert(result.allPassed
+            ? `PASS: All tests passed!\n\n${result.totalPassed}/${result.totalSteps} steps passed.`
+            : `FAIL: Some tests failed.\n\n${result.totalPassed}/${result.totalSteps} steps passed.`);
     };
 
     window.onSingleTestComplete = function(result) {
         const log = document.getElementById('realtime-log');
         if (log) {
             log.innerHTML = `<div style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}; font-weight: bold;">
-                ${result.testId} — ${result.testName}: ${result.passedCount}/${result.steps.length} passed
+                ${result.testId} \u2014 ${result.testName}: ${result.passedCount}/${result.steps.length} passed
             </div>`;
 
             result.steps.forEach(step => {
                 const color = step.passed ? 'var(--success)' : 'var(--error)';
-                const icon = step.passed ? '✓' : '✗';
+                const icon = step.passed ? '\u2713' : '\u2717';
                 log.innerHTML += `<div style="margin: 4px 0; padding: 8px; background: var(--card); border-radius: 4px;">
                     <span style="color: ${color}">${icon}</span>
                     <span style="color: var(--text-dim); font-size: 11px;">#${step.step}</span>
                     ${step.description}<br>
                     <span style="font-family: var(--mono); color: var(--accent); font-size: 12px;">${step.actual}</span>
                 </div>`;
+
+                // Log each step to SQLite
+                logTokenTest(result.testId + '-' + step.step, 7, step.category || 'credit',
+                    step.pan || '', step.register || null, step.ti || null,
+                    step.creditType || null, step.amount || null,
+                    step.mgmtType || null, step.mgmtValue || null,
+                    step.issueDate || null, step.baseDate || null,
+                    step.expected || null, step.actual || null, step.passed);
             });
         }
+
+        showCompToast(result.allPassed,
+            result.allPassed ? `${result.testId} PASSED` : `${result.testId} FAILED`,
+            `${result.passedCount}/${result.steps.length} steps passed`);
+
+        alert(result.allPassed
+            ? `PASS: ${result.testId} \u2014 ${result.testName}\n\n${result.passedCount}/${result.steps.length} steps passed.`
+            : `FAIL: ${result.testId} \u2014 ${result.testName}\n\n${result.passedCount}/${result.steps.length} steps passed.`);
     };
 </script>
 }
