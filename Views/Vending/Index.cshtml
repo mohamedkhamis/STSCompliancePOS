@@ -14,6 +14,26 @@
     </span>
 </div>
 
+<!-- Load Test Vector -->
+<div class="card card-accent-warn" style="margin-bottom: 16px;">
+    <div class="card-title warn">Load Test Vector (auto-fill parameters + expected token)</div>
+    <div class="grid-2">
+        <div class="form-group">
+            <label>EA Version</label>
+            <select class="form-control" id="tv-ea" onchange="populateTestVectors()">
+                <option value="7">EA07 (STS 531-1-07)</option>
+                <option value="11">EA11 (STS 531-1-11)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Test Vector</label>
+            <select class="form-control" id="tv-select" onchange="loadTestVector()">
+                <option value="">-- Manual entry --</option>
+            </select>
+        </div>
+    </div>
+</div>
+
 <div class="grid-2">
     <!-- APDU / Token Parameters -->
     <div>
@@ -80,8 +100,10 @@
                 <div class="form-group">
                     <label>Base Date</label>
                     <select class="form-control" id="vend-bd">
-                        <option value="2014">2014</option>
-                        <option value="2035">2035</option>
+                        @for (int y = 2011; y <= 2027; y++)
+                        {
+                            <option value="@y" selected="@(y == 2014)">@y</option>
+                        }
                     </select>
                 </div>
             </div>
@@ -145,13 +167,34 @@
             GENERATE TOKEN
         </button>
 
+        <!-- PASS/FAIL Banner -->
+        <div id="vend-pass-banner" style="display: none; margin-top: 16px; text-align: center; padding: 14px; border-radius: 8px; font-weight: 800; font-size: 16px; letter-spacing: 2px;"></div>
+
         <!-- Result Display -->
         <div id="vend-result" style="display: none; margin-top: 16px;">
+            <!-- Generated Token from VSM -->
             <div class="card card-accent-green">
-                <div class="card-title green">Generated Token</div>
+                <div class="card-title green">Generated Token (from VSM)</div>
                 <div class="token-label">20-Digit STS Token</div>
                 <div class="token-display" id="vend-token-value" style="cursor: pointer;" onclick="copyToken()" title="Click to copy"></div>
                 <div id="vend-token-ea" style="font-size: 11px; color: var(--text-dim); margin-top: 6px;"></div>
+            </div>
+
+            <!-- Expected vs Generated Comparison -->
+            <div id="vend-comparison-card" class="card card-accent-blue" style="display: none;">
+                <div class="card-title blue">Expected vs Generated</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">Expected (from spec)</div>
+                        <div id="vend-expected-display" style="font-family: var(--mono); font-size: 14px; color: var(--accent); letter-spacing: 2px; background: #000; padding: 10px; border-radius: 6px; text-align: center;"></div>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;">Generated (from VSM)</div>
+                        <div id="vend-actual-display" style="font-family: var(--mono); font-size: 14px; letter-spacing: 2px; background: #000; padding: 10px; border-radius: 6px; text-align: center;"></div>
+                    </div>
+                </div>
+                <!-- Digit-by-digit comparison -->
+                <div id="vend-digit-diff" style="margin-top: 10px; font-family: var(--mono); font-size: 12px; text-align: center; letter-spacing: 3px;"></div>
             </div>
         </div>
 
@@ -161,13 +204,14 @@
             </div>
         </div>
 
-        <!-- Expected Token Comparison -->
+        <!-- Validation — expected token input -->
         <div class="card" style="margin-top: 16px;">
+            <div class="card-title" style="color: var(--text-dim);">Validation</div>
             <div class="form-group">
-                <label>Expected Token (optional, for comparison)</label>
+                <label>Expected Token (auto-filled from test vector, or enter manually)</label>
                 <input type="text" class="form-control" id="vend-expected" placeholder="e.g. 7063 0503 4700 2872 6114" />
             </div>
-            <div id="vend-compare" style="display: none;"></div>
+            <div id="vend-tv-info" style="display: none; font-size: 11px; color: var(--text-dim); margin-top: 6px;"></div>
         </div>
 
         <!-- Activity Log -->
@@ -182,6 +226,147 @@
 
 @section Scripts {
 <script>
+    // =========================================================================
+    //  Known test vectors from STS 531-1-07 and STS 531-1-11 specs
+    // =========================================================================
+    const testVectors = {
+        "7": [
+            // CTSA01 — TransferCredit (EA07)
+            { id: "CTSA01-1", label: "CTSA01 S1: 0.1kWh Elec, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 0.1, date: "2014-03-01T13:00", bd: 2014, expected: "7063 0503 4700 2872 6114" },
+            { id: "CTSA01-2", label: "CTSA01 S2: 0.1kl Water, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "1", amount: 0.1, date: "2014-03-01T13:05", bd: 2014, expected: "2551 0558 0109 3250 6821" },
+            { id: "CTSA01-3", label: "CTSA01 S3: 0.1m3 Gas, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "2", amount: 0.1, date: "2014-03-01T13:10", bd: 2014, expected: "1762 3693 5256 1492 7277" },
+            { id: "CTSA01-4", label: "CTSA01 S4: 0.1min Time, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "3", amount: 0.1, date: "2014-03-01T13:15", bd: 2014, expected: "0974 6334 4999 1398 8084" },
+            { id: "CTSA01-5", label: "CTSA01 S5: 0.1kWh Elec, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "0", amount: 0.1, date: "2014-03-01T13:40", bd: 2014, expected: "0369 6784 3965 6719 3485" },
+            { id: "CTSA01-6", label: "CTSA01 S6: 0.1kl Water, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "1", amount: 0.1, date: "2014-03-01T13:45", bd: 2014, expected: "0353 0385 5551 6557 9931" },
+            { id: "CTSA01-7", label: "CTSA01 S7: 0.1m3 Gas, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "2", amount: 0.1, date: "2014-03-01T13:50", bd: 2014, expected: "0545 5142 6230 5752 5239" },
+            { id: "CTSA01-8", label: "CTSA01 S8: 0.1min Time, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "3", amount: 0.1, date: "2014-03-01T13:55", bd: 2014, expected: "3449 8403 1437 9750 2264" },
+            { id: "CTSA01-9", label: "CTSA01 S9: 0.1kWh Elec, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "0", amount: 0.1, date: "2035-01-01T08:00", bd: 2035, expected: "4921 7377 4370 6573 1889" },
+            { id: "CTSA01-10", label: "CTSA01 S10: 0.1kl Water, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "1", amount: 0.1, date: "2035-01-01T08:05", bd: 2035, expected: "6588 8845 1435 4412 8525" },
+            { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, expected: "4724 3053 8433 6996 6174" },
+            { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, expected: "3012 7467 7392 8379 0161" },
+            // CTSA03 — SetMaximumPowerLimit (EA07)
+            { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 10, date: "2024-03-28T09:01", bd: 2014, expected: "6896 1683 0643 2623 4122" },
+            // CTSA04 — ClearCredit (EA07)
+            { id: "CTSA04-1", label: "CTSA04 S1: ClearCredit, PAN=11, 0xFFFF", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2024-03-28T09:15", bd: 2014, expected: "0006 6562 8693 3303 1750" },
+            { id: "CTSA04-2", label: "CTSA04 S2: ClearCredit, PAN=13", cat: "management", pan: "000001000000000082", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2016-08-30T09:20", bd: 2014, expected: "0948 5016 9352 0867 1611" },
+            // CTSA06 — ClearTamperCondition (EA07)
+            { id: "CTSA06-1", label: "CTSA06: ClearTamperCondition", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "5", mgmtValue: 0, date: "2025-03-28T10:00", bd: 2014, expected: "4254 5072 1128 4378 0101" },
+            // CTSA07 — SetMPUL (EA07)
+            { id: "CTSA07-1", label: "CTSA07: SetMPUL 10W", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "6", mgmtValue: 100, date: "2025-03-28T10:20", bd: 2014, expected: "3171 2008 4993 5179 7283" },
+            // CTSA10 — TransferAmount (EA07)
+            { id: "CTSA10-1", label: "CTSA10 S1: 25.6kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 25.6, date: "2024-04-01T00:30", bd: 2014, expected: "3556 4630 5097 8570 1608" },
+            { id: "CTSA10-2", label: "CTSA10 S2: 1638.3kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 1638.3, date: "2024-04-01T00:35", bd: 2014, expected: "4077 4607 5834 4958 9001" },
+            { id: "CTSA10-3", label: "CTSA10 S3: 1638.4kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 1638.4, date: "2024-04-01T00:40", bd: 2014, expected: "4433 2531 3579 8763 1349" },
+            { id: "CTSA10-4", label: "CTSA10 S4: 2000.0kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 2000.0, date: "2024-04-01T00:45", bd: 2014, expected: "0860 9861 4278 9558 3861" },
+            { id: "CTSA10-5", label: "CTSA10 S5: 18022.3kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 18022.3, date: "2024-04-01T00:50", bd: 2014, expected: "1772 1942 4578 2032 1090" },
+        ],
+        "11": [
+            // CTSA01 — TransferCredit (EA11)
+            { id: "CTSA01-1", label: "CTSA01 S1: 0.1kWh Elec, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 0.1, date: "2014-03-01T13:00", bd: 2014, expected: "5862 5789 9869 9135 7486" },
+            { id: "CTSA01-2", label: "CTSA01 S2: 0.1kl Water, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "1", amount: 0.1, date: "2014-03-01T13:05", bd: 2014, expected: "5113 2789 4367 8786 1315" },
+            { id: "CTSA01-3", label: "CTSA01 S3: 0.1m3 Gas, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "2", amount: 0.1, date: "2014-03-01T13:10", bd: 2014, expected: "2142 7168 5439 8849 7677" },
+            { id: "CTSA01-4", label: "CTSA01 S4: 0.1min Time, PAN=11, BD=2014", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "3", amount: 0.1, date: "2014-03-01T13:15", bd: 2014, expected: "5631 5517 0196 4181 8580" },
+            { id: "CTSA01-5", label: "CTSA01 S5: 0.1kWh Elec, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "0", amount: 0.1, date: "2014-03-01T13:40", bd: 2014, expected: "1316 5821 0064 0727 9478" },
+            { id: "CTSA01-6", label: "CTSA01 S6: 0.1kl Water, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "1", amount: 0.1, date: "2014-03-01T13:45", bd: 2014, expected: "2816 8470 1473 2058 0432" },
+            { id: "CTSA01-7", label: "CTSA01 S7: 0.1m3 Gas, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "2", amount: 0.1, date: "2014-03-01T13:50", bd: 2014, expected: "1563 2590 8517 9990 5715" },
+            { id: "CTSA01-8", label: "CTSA01 S8: 0.1min Time, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "3", amount: 0.1, date: "2014-03-01T13:55", bd: 2014, expected: "5340 4104 5344 4817 3435" },
+            { id: "CTSA01-9", label: "CTSA01 S9: 0.1kWh Elec, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "0", amount: 0.1, date: "2035-01-01T08:00", bd: 2035, expected: "5993 6545 0505 5030 8168" },
+            { id: "CTSA01-10", label: "CTSA01 S10: 0.1kl Water, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "1", amount: 0.1, date: "2035-01-01T08:05", bd: 2035, expected: "5503 0884 2515 9891 3292" },
+            { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, expected: "1406 4537 3119 1633 7013" },
+            { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, expected: "6462 2162 7715 3760 4642" },
+            // CTSA03 — SetMaximumPowerLimit (EA11)
+            { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 10, date: "2024-03-28T09:01", bd: 2014, expected: "3449 4889 4753 7886 6499" },
+            // CTSA04 — ClearCredit (EA11)
+            { id: "CTSA04-1", label: "CTSA04 S1: ClearCredit, PAN=11, 0xFFFF", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2024-03-28T09:15", bd: 2014, expected: "1808 7553 1137 0143 9362" },
+            { id: "CTSA04-2", label: "CTSA04 S2: ClearCredit, PAN=13", cat: "management", pan: "000001000000000082", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2016-08-30T09:20", bd: 2014, expected: "5278 4471 9678 3922 6516" },
+            // CTSA06 — ClearTamperCondition (EA11)
+            { id: "CTSA06-1", label: "CTSA06: ClearTamperCondition", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "5", mgmtValue: 0, date: "2024-03-28T10:00", bd: 2014, expected: "0719 4127 7291 9986 2502" },
+            // CTSA07 — SetMPUL (EA11)
+            { id: "CTSA07-1", label: "CTSA07: SetMPUL 10W", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "6", mgmtValue: 100, date: "2024-03-28T10:20", bd: 2014, expected: "3606 1906 1324 6121 0546" },
+            // CTSA10 — TransferAmount (EA11)
+            { id: "CTSA10-1", label: "CTSA10 S1: 25.6kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 25.6, date: "2026-07-11T00:30", bd: 2014, expected: "2364 1553 6653 9815 4702" },
+            { id: "CTSA10-2", label: "CTSA10 S2: 1638.3kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 1638.3, date: "2026-07-11T00:35", bd: 2014, expected: "2589 1865 0802 0361 7683" },
+            { id: "CTSA10-3", label: "CTSA10 S3: 1638.4kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 1638.4, date: "2026-07-11T00:40", bd: 2014, expected: "2761 5769 0590 1211 0139" },
+            { id: "CTSA10-4", label: "CTSA10 S4: 2000.0kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 2000.0, date: "2026-07-11T00:45", bd: 2014, expected: "6633 4093 5690 9327 5152" },
+            { id: "CTSA10-5", label: "CTSA10 S5: 18022.3kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 18022.3, date: "2026-07-11T00:50", bd: 2014, expected: "5446 9257 3741 5949 6590" },
+        ]
+    };
+
+    // Populate test vector dropdown based on selected EA
+    function populateTestVectors() {
+        const ea = document.getElementById('tv-ea').value;
+        const select = document.getElementById('tv-select');
+        const vectors = testVectors[ea] || [];
+        select.innerHTML = '<option value="">-- Manual entry --</option>';
+
+        let lastGroup = '';
+        vectors.forEach((v, i) => {
+            const group = v.id.split('-')[0];
+            if (group !== lastGroup) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group;
+                vectors.filter(x => x.id.startsWith(group + '-')).forEach(x => {
+                    const opt = document.createElement('option');
+                    opt.value = vectors.indexOf(x);
+                    opt.textContent = x.label;
+                    optgroup.appendChild(opt);
+                });
+                select.appendChild(optgroup);
+                lastGroup = group;
+            }
+        });
+    }
+
+    // Load selected test vector into all form fields
+    function loadTestVector() {
+        const ea = document.getElementById('tv-ea').value;
+        const idx = document.getElementById('tv-select').value;
+        if (idx === '') return;
+
+        const v = testVectors[ea][parseInt(idx)];
+        if (!v) return;
+
+        // Set EA
+        document.getElementById('vend-ea').value = ea;
+        // Set PAN
+        document.getElementById('vend-pan').value = v.pan;
+        // Set register
+        document.getElementById('vend-reg').value = v.reg;
+        // Set TI
+        document.getElementById('vend-ti').value = v.ti;
+        // Set date
+        document.getElementById('vend-date').value = v.date;
+        // Set base date
+        document.getElementById('vend-bd').value = v.bd;
+        // Set category
+        document.getElementById('vend-category').value = v.cat;
+        onCategoryChanged();
+
+        if (v.cat === 'credit') {
+            document.getElementById('vend-ct').value = v.ct;
+            document.getElementById('vend-amount').value = v.amount;
+        } else {
+            document.getElementById('vend-mgmt-type').value = v.mgmtType;
+            document.getElementById('vend-mgmt-value').value = v.mgmtValue;
+        }
+
+        // Set expected token
+        document.getElementById('vend-expected').value = v.expected;
+
+        // Show info
+        const info = document.getElementById('vend-tv-info');
+        info.textContent = `Loaded: ${v.id} (EA${ea === '11' ? '11' : '07'}) — Expected: ${v.expected}`;
+        info.style.display = 'block';
+
+        // Hide old results
+        document.getElementById('vend-result').style.display = 'none';
+        document.getElementById('vend-error').style.display = 'none';
+        document.getElementById('vend-compare').style.display = 'none';
+    }
+
+    // Initialize test vector dropdown on page load
+    document.addEventListener('DOMContentLoaded', () => populateTestVectors());
+
     function onCategoryChanged() {
         const cat = document.getElementById('vend-category').value;
         document.getElementById('credit-fields').style.display = cat === 'credit' ? 'block' : 'none';
@@ -222,9 +407,10 @@
     window.onTokenReceived = function(result) {
         const resultDiv = document.getElementById('vend-result');
         const errorDiv = document.getElementById('vend-error');
+        const banner = document.getElementById('vend-pass-banner');
         const valueDiv = document.getElementById('vend-token-value');
         const eaDiv = document.getElementById('vend-token-ea');
-        const compareDiv = document.getElementById('vend-compare');
+        const compCard = document.getElementById('vend-comparison-card');
         const expectedInput = document.getElementById('vend-expected');
 
         if (result.token) {
@@ -234,20 +420,65 @@
             errorDiv.style.display = 'none';
 
             // Compare with expected if provided
-            const expected = expectedInput.value.replace(/\s/g, '');
-            if (expected) {
+            const expectedRaw = expectedInput.value.trim();
+            if (expectedRaw) {
+                const expected = expectedRaw.replace(/\s/g, '');
                 const actual = result.token.replace(/\s/g, '');
-                if (actual === expected) {
-                    compareDiv.innerHTML = '<div class="verify-box verify-pass"><span class="verify-text">MATCH — Token matches expected value</span></div>';
+                const passed = actual === expected;
+
+                // PASS/FAIL banner
+                banner.style.display = 'block';
+                banner.textContent = passed ? 'PASS' : 'FAIL';
+                banner.style.background = passed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+                banner.style.color = passed ? 'var(--success)' : 'var(--error)';
+                banner.style.border = passed ? '2px solid var(--success)' : '2px solid var(--error)';
+
+                // Show comparison card
+                compCard.style.display = 'block';
+                document.getElementById('vend-expected-display').textContent = expectedRaw;
+                const actualDisplay = document.getElementById('vend-actual-display');
+                actualDisplay.textContent = result.token;
+                actualDisplay.style.color = passed ? 'var(--success)' : 'var(--error)';
+
+                // Digit-by-digit diff
+                const diffDiv = document.getElementById('vend-digit-diff');
+                if (!passed) {
+                    let html = '';
+                    for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
+                        const a = actual[i] || '';
+                        const e = expected[i] || '';
+                        if (a === e) {
+                            html += `<span style="color: var(--text-dim);">${a}</span>`;
+                        } else {
+                            html += `<span style="color: var(--error); font-weight: bold; text-decoration: underline;">${a || '_'}</span>`;
+                        }
+                    }
+                    diffDiv.innerHTML = '<div style="margin-top: 4px; font-size: 10px; color: var(--text-dim);">Mismatched digits highlighted:</div>' + html;
+                    diffDiv.style.display = 'block';
                 } else {
-                    compareDiv.innerHTML = '<div class="verify-box verify-fail"><span class="verify-text">MISMATCH — Token does not match expected value</span></div>';
+                    diffDiv.innerHTML = '<span style="color: var(--success);">All 20 digits match</span>';
+                    diffDiv.style.display = 'block';
                 }
-                compareDiv.style.display = 'block';
+
+                // Log to activity
+                const log = document.getElementById('progress-log');
+                if (log) {
+                    const tvSelect = document.getElementById('tv-select');
+                    const tvLabel = tvSelect.selectedIndex > 0 ? tvSelect.options[tvSelect.selectedIndex].text : 'Manual';
+                    log.innerHTML += `<div class="log-entry" style="color: ${passed ? 'var(--success)' : 'var(--error)'};">${formatTime()} ${passed ? 'PASS' : 'FAIL'} — ${tvLabel}</div>`;
+                    log.innerHTML += `<div class="log-entry">${formatTime()} Expected: ${expectedRaw}</div>`;
+                    log.innerHTML += `<div class="log-entry">${formatTime()} Got:      ${result.token}</div>`;
+                    log.scrollTop = log.scrollHeight;
+                }
+            } else {
+                banner.style.display = 'none';
+                compCard.style.display = 'none';
             }
         } else {
             document.getElementById('vend-error-text').textContent = 'Error: ' + result.error;
             errorDiv.style.display = 'block';
             resultDiv.style.display = 'none';
+            banner.style.display = 'none';
         }
     };
 
