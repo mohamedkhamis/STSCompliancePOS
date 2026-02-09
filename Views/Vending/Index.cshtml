@@ -1,6 +1,17 @@
 @inject STSCompliancePOS.Services.VSMConfiguration Config
 @{ ViewData["Title"] = "Vend Token"; }
 
+<!-- Toast Notification -->
+<div id="toast-notification" style="display: none; position: fixed; top: 24px; right: 24px; z-index: 9999; min-width: 320px; padding: 16px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 1px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: opacity 0.3s, transform 0.3s; transform: translateY(-10px); opacity: 0;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="toast-icon" style="font-size: 24px;"></span>
+        <div>
+            <div id="toast-title" style="font-size: 16px;"></div>
+            <div id="toast-detail" style="font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.8;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="page-header">
     <h2>Vend Token</h2>
     <div class="subtitle">Generate real STS tokens via VSM hardware</div>
@@ -407,86 +418,163 @@
 
     // Handle token received (both credit and management use ReceiveToken)
     window.onTokenReceived = function(result) {
-        const resultDiv = document.getElementById('vend-result');
-        const errorDiv = document.getElementById('vend-error');
-        const banner = document.getElementById('vend-pass-banner');
-        const valueDiv = document.getElementById('vend-token-value');
-        const eaDiv = document.getElementById('vend-token-ea');
-        const compCard = document.getElementById('vend-comparison-card');
-        const expectedInput = document.getElementById('vend-expected');
+        try {
+            const resultDiv = document.getElementById('vend-result');
+            const errorDiv = document.getElementById('vend-error');
+            const banner = document.getElementById('vend-pass-banner');
+            const valueDiv = document.getElementById('vend-token-value');
+            const eaDiv = document.getElementById('vend-token-ea');
+            const compCard = document.getElementById('vend-comparison-card');
+            const expectedInput = document.getElementById('vend-expected');
+            const log = document.getElementById('progress-log');
+            const tvSelect = document.getElementById('tv-select');
+            const tvLabel = tvSelect && tvSelect.selectedIndex > 0 ? tvSelect.options[tvSelect.selectedIndex].text : 'Manual';
 
-        if (result.token) {
-            valueDiv.textContent = result.token;
-            eaDiv.textContent = `EA${result.ea === 11 ? '11' : '07'} · Generated at ${new Date().toLocaleTimeString()}`;
-            resultDiv.style.display = 'block';
-            errorDiv.style.display = 'none';
+            // Build info about what was generated
+            const cat = document.getElementById('vend-category').value;
+            let genInfo = '';
+            if (cat === 'credit') {
+                const ctSel = document.getElementById('vend-ct');
+                const ctLabel = ctSel.options[ctSel.selectedIndex].text;
+                const amount = document.getElementById('vend-amount').value;
+                genInfo = `${ctLabel}, ${amount} units`;
+            } else {
+                const mgmtSel = document.getElementById('vend-mgmt-type');
+                const mgmtLabel = mgmtSel.options[mgmtSel.selectedIndex].text;
+                const mgmtVal = document.getElementById('vend-mgmt-value').value;
+                genInfo = `${mgmtLabel}, value=${mgmtVal}`;
+            }
 
-            // Compare with expected if provided
-            const expectedRaw = expectedInput.value.trim();
-            if (expectedRaw) {
-                const expected = expectedRaw.replace(/\s/g, '');
-                const actual = result.token.replace(/\s/g, '');
-                const passed = actual === expected;
+            if (result.token) {
+                valueDiv.textContent = result.token;
+                eaDiv.textContent = `EA${result.ea === 11 ? '11' : '07'} · ${genInfo} · ${new Date().toLocaleTimeString()}`;
+                resultDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
 
-                // PASS/FAIL banner
-                banner.style.display = 'block';
-                banner.textContent = passed ? 'PASS' : 'FAIL';
-                banner.style.background = passed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
-                banner.style.color = passed ? 'var(--success)' : 'var(--error)';
-                banner.style.border = passed ? '2px solid var(--success)' : '2px solid var(--error)';
+                // Compare with expected if provided
+                const expectedRaw = expectedInput ? expectedInput.value.trim() : '';
+                if (expectedRaw) {
+                    const expected = expectedRaw.replace(/\s/g, '');
+                    const actual = result.token.replace(/\s/g, '');
+                    const passed = actual === expected;
 
-                // Show comparison card
-                compCard.style.display = 'block';
-                document.getElementById('vend-expected-display').textContent = expectedRaw;
-                const actualDisplay = document.getElementById('vend-actual-display');
-                actualDisplay.textContent = result.token;
-                actualDisplay.style.color = passed ? 'var(--success)' : 'var(--error)';
+                    // PASS/FAIL banner
+                    banner.style.display = 'block';
+                    banner.textContent = passed ? 'PASS' : 'FAIL';
+                    banner.style.background = passed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+                    banner.style.color = passed ? 'var(--success)' : 'var(--error)';
+                    banner.style.border = passed ? '2px solid var(--success)' : '2px solid var(--error)';
 
-                // Digit-by-digit diff
-                const diffDiv = document.getElementById('vend-digit-diff');
-                if (!passed) {
-                    let html = '';
-                    for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
-                        const a = actual[i] || '';
-                        const e = expected[i] || '';
-                        if (a === e) {
-                            html += `<span style="color: var(--text-dim);">${a}</span>`;
-                        } else {
-                            html += `<span style="color: var(--error); font-weight: bold; text-decoration: underline;">${a || '_'}</span>`;
+                    // Show comparison card
+                    compCard.style.display = 'block';
+                    document.getElementById('vend-expected-display').textContent = expectedRaw;
+                    const actualDisplay = document.getElementById('vend-actual-display');
+                    actualDisplay.textContent = result.token;
+                    actualDisplay.style.color = passed ? 'var(--success)' : 'var(--error)';
+
+                    // Digit-by-digit diff
+                    const diffDiv = document.getElementById('vend-digit-diff');
+                    if (!passed) {
+                        let html = '';
+                        for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
+                            const a = actual[i] || '';
+                            const e = expected[i] || '';
+                            if (a === e) {
+                                html += `<span style="color: var(--text-dim);">${a}</span>`;
+                            } else {
+                                html += `<span style="color: var(--error); font-weight: bold; text-decoration: underline;">${a || '_'}</span>`;
+                            }
                         }
+                        diffDiv.innerHTML = '<div style="margin-top: 4px; font-size: 10px; color: var(--text-dim);">Mismatched digits highlighted:</div>' + html;
+                        diffDiv.style.display = 'block';
+                    } else {
+                        diffDiv.innerHTML = '<span style="color: var(--success);">All 20 digits match</span>';
+                        diffDiv.style.display = 'block';
                     }
-                    diffDiv.innerHTML = '<div style="margin-top: 4px; font-size: 10px; color: var(--text-dim);">Mismatched digits highlighted:</div>' + html;
-                    diffDiv.style.display = 'block';
+
+                    // Log to activity
+                    if (log) {
+                        log.innerHTML += `<div class="log-entry" style="color: ${passed ? 'var(--success)' : 'var(--error)'}; font-weight: bold;">${formatTime()} ${passed ? 'PASS' : 'FAIL'} — ${tvLabel}</div>`;
+                        log.innerHTML += `<div class="log-entry">${formatTime()} Expected: ${expectedRaw}</div>`;
+                        log.innerHTML += `<div class="log-entry">${formatTime()} Got:      ${result.token}</div>`;
+                        log.scrollTop = log.scrollHeight;
+                    }
+
+                    // Show toast notification
+                    showToast(passed, tvLabel, result.token);
                 } else {
-                    diffDiv.innerHTML = '<span style="color: var(--success);">All 20 digits match</span>';
-                    diffDiv.style.display = 'block';
+                    // No expected value — just show the token, no comparison
+                    banner.style.display = 'none';
+                    compCard.style.display = 'none';
+
+                    if (log) {
+                        log.innerHTML += `<div class="log-entry" style="color: var(--success);">${formatTime()} Token generated: ${result.token}</div>`;
+                        log.innerHTML += `<div class="log-entry">${formatTime()} ${genInfo}</div>`;
+                        log.scrollTop = log.scrollHeight;
+                    }
                 }
 
-                // Log to activity
-                const log = document.getElementById('progress-log');
+                // Auto-scroll to result
+                banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                document.getElementById('vend-error-text').textContent = 'Error: ' + result.error;
+                errorDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                banner.style.display = 'none';
+
                 if (log) {
-                    const tvSelect = document.getElementById('tv-select');
-                    const tvLabel = tvSelect.selectedIndex > 0 ? tvSelect.options[tvSelect.selectedIndex].text : 'Manual';
-                    log.innerHTML += `<div class="log-entry" style="color: ${passed ? 'var(--success)' : 'var(--error)'};">${formatTime()} ${passed ? 'PASS' : 'FAIL'} — ${tvLabel}</div>`;
-                    log.innerHTML += `<div class="log-entry">${formatTime()} Expected: ${expectedRaw}</div>`;
-                    log.innerHTML += `<div class="log-entry">${formatTime()} Got:      ${result.token}</div>`;
+                    log.innerHTML += `<div class="log-entry" style="color: var(--error);">${formatTime()} ERROR: ${result.error}</div>`;
                     log.scrollTop = log.scrollHeight;
                 }
-            } else {
-                banner.style.display = 'none';
-                compCard.style.display = 'none';
+
+                // Scroll to error
+                errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-        } else {
-            document.getElementById('vend-error-text').textContent = 'Error: ' + result.error;
-            errorDiv.style.display = 'block';
-            resultDiv.style.display = 'none';
-            banner.style.display = 'none';
+        } catch (ex) {
+            console.error('[Vending] onTokenReceived error:', ex);
+            const log = document.getElementById('progress-log');
+            if (log) {
+                log.innerHTML += `<div class="log-entry" style="color: var(--error);">${formatTime()} JS Error: ${ex.message}</div>`;
+                log.scrollTop = log.scrollHeight;
+            }
         }
     };
 
     function copyToken() {
         const token = document.getElementById('vend-token-value').textContent;
         navigator.clipboard.writeText(token);
+    }
+
+    function showToast(passed, testLabel, token) {
+        const toast = document.getElementById('toast-notification');
+        const icon = document.getElementById('toast-icon');
+        const title = document.getElementById('toast-title');
+        const detail = document.getElementById('toast-detail');
+
+        icon.textContent = passed ? 'PASS' : 'FAIL';
+        icon.style.color = passed ? '#10b981' : '#ef4444';
+        title.textContent = passed ? 'TOKEN MATCH' : 'TOKEN MISMATCH';
+        title.style.color = passed ? '#10b981' : '#ef4444';
+        detail.textContent = `${testLabel} — ${token}`;
+        detail.style.color = passed ? 'rgba(16,185,129,0.8)' : 'rgba(239,68,68,0.8)';
+
+        toast.style.display = 'block';
+        toast.style.background = passed ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+        toast.style.border = passed ? '2px solid rgba(16,185,129,0.5)' : '2px solid rgba(239,68,68,0.5)';
+
+        // Animate in
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
+
+        // Auto-dismiss after 5 seconds
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => toast.style.display = 'none', 300);
+        }, 5000);
     }
 
     // Update connection banner on status change
