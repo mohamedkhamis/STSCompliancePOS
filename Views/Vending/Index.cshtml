@@ -179,7 +179,7 @@
                     <label>Value (register/limit)</label>
                     <input type="number" class="form-control" id="vend-mgmt-value" value="65535" />
                     <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">
-                        ClearCredit: 0xFFFF (65535) · MPL/MPUL: power in 0.1W units · ClearTamper: 0
+                        ClearCredit: 0xFFFF (65535) · MPL/MPUL: power in Watts · ClearTamper: 0
                     </div>
                 </div>
             </div>
@@ -267,14 +267,14 @@
             { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, krn: "6", expected: "4724 3053 8433 6996 6174" },
             { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, krn: "6", expected: "3012 7467 7392 8379 0161" },
             // CTSA03 — SetMaximumPowerLimit (EA07)
-            { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 10, date: "2024-03-28T09:01", bd: 2014, expected: "6896 1683 0643 2623 4122" },
+            { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 1000, date: "2024-03-28T09:01", bd: 2014, expected: "6896 1683 0643 2623 4122" },
             // CTSA04 — ClearCredit (EA07)
             { id: "CTSA04-1", label: "CTSA04 S1: ClearCredit, PAN=11, 0xFFFF", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2024-03-28T09:15", bd: 2014, expected: "0006 6562 8693 3303 1750" },
             { id: "CTSA04-2", label: "CTSA04 S2: ClearCredit, PAN=13", cat: "management", pan: "000001000000000082", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2016-08-30T09:20", bd: 2014, expected: "0948 5016 9352 0867 1611" },
             // CTSA06 — ClearTamperCondition (EA07)
             { id: "CTSA06-1", label: "CTSA06: ClearTamperCondition", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "5", mgmtValue: 0, date: "2025-03-28T10:00", bd: 2014, expected: "4254 5072 1128 4378 0101" },
             // CTSA07 — SetMPUL (EA07)
-            { id: "CTSA07-1", label: "CTSA07: SetMPUL 10W", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "6", mgmtValue: 100, date: "2025-03-28T10:20", bd: 2014, expected: "3171 2008 4993 5179 7283" },
+            { id: "CTSA07-1", label: "CTSA07: SetMPUL 10W", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "6", mgmtValue: 10, date: "2025-03-28T10:20", bd: 2014, expected: "3171 2008 4993 5179 7283" },
             // CTSA10 — TransferAmount (EA07)
             { id: "CTSA10-1", label: "CTSA10 S1: 25.6kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 25.6, date: "2024-04-01T00:30", bd: 2014, expected: "3556 4630 5097 8570 1608" },
             { id: "CTSA10-2", label: "CTSA10 S2: 1638.3kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 1638.3, date: "2024-04-01T00:35", bd: 2014, expected: "4077 4607 5834 4958 9001" },
@@ -297,14 +297,14 @@
             { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, krn: "6", expected: "1406 4537 3119 1633 7013" },
             { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, krn: "6", expected: "6462 2162 7715 3760 4642" },
             // CTSA03 — SetMaximumPowerLimit (EA11)
-            { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 1, date: "2024-03-28T09:01", bd: 2014, expected: "3449 4889 4753 7886 6499" },
+            { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 1000, date: "2024-03-28T09:01", bd: 2014, expected: "3449 4889 4753 7886 6499" },
             // CTSA04 — ClearCredit (EA11)
             { id: "CTSA04-1", label: "CTSA04 S1: ClearCredit, PAN=11, 0xFFFF", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2024-03-28T09:15", bd: 2014, expected: "1808 7553 1137 0143 9362" },
             { id: "CTSA04-2", label: "CTSA04 S2: ClearCredit, PAN=13", cat: "management", pan: "000001000000000082", reg: "01", ti: "01", mgmtType: "1", mgmtValue: 65535, date: "2016-08-30T09:20", bd: 2014, expected: "5278 4471 9678 3922 6516" },
             // CTSA06 — ClearTamperCondition (EA11)
             { id: "CTSA06-1", label: "CTSA06: ClearTamperCondition", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "5", mgmtValue: 0, date: "2024-03-28T10:00", bd: 2014, expected: "0719 4127 7291 9986 2502" },
             // CTSA07 — SetMPUL (EA11)
-            { id: "CTSA07-1", label: "CTSA07: SetMPUL 10W", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "6", mgmtValue: 100, date: "2024-03-28T10:20", bd: 2014, expected: "3606 1906 1324 6121 0546" },
+            { id: "CTSA07-1", label: "CTSA07: SetMPUL 10W", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "6", mgmtValue: 10, date: "2024-03-28T10:20", bd: 2014, expected: "3606 1906 1324 6121 0546" },
             // CTSA10 — TransferAmount (EA11)
             { id: "CTSA10-1", label: "CTSA10 S1: 25.6kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 25.6, date: "2026-07-11T00:30", bd: 2014, expected: "2364 1553 6653 9815 4702" },
             { id: "CTSA10-2", label: "CTSA10 S2: 1638.3kWh", cat: "credit", pan: "600727000000000009", reg: "01", ti: "01", ct: "0", amount: 1638.3, date: "2026-07-11T00:35", bd: 2014, expected: "2589 1865 0802 0361 7683" },
@@ -411,7 +411,7 @@
 
         // Only update value for SetMaximumPowerLimit (mgmtType=0) management tokens
         if (cat === 'management' && mgmtType === '0') {
-            const newVal = (ea === 11) ? 1 : 10;
+            const newVal = 1000;
             document.getElementById('vend-mgmt-value').value = newVal;
             console.log(`[Vending] EA changed to ${ea} → SetMPL default value = ${newVal}`);
         }
