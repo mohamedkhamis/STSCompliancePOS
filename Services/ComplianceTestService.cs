@@ -377,7 +377,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
         foreach (var t in tests)
         {
             result.Steps.Add(await RunManagementStep($"MPL={t.mpl}W",
-                PAN_11, REG_MAIN, "01", "0", t.date, (ushort)(t.mpl / 10), 2014, t.expected));
+                PAN_11, REG_MAIN, "01", "0", t.date, StsHelper.EncodeAmount(t.mpl), 2014, t.expected));
         }
 
         result.EndTime = DateTime.UtcNow;
@@ -401,7 +401,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
         foreach (var t in tests)
         {
             result.Steps.Add(await RunManagementStep($"MPUL={t.mpul}W",
-                PAN_11, REG_MAIN, "01", "6", t.date, (ushort)(t.mpul / 10), 2014, t.expected));
+                PAN_11, REG_MAIN, "01", "6", t.date, StsHelper.EncodeAmount(t.mpul), 2014, t.expected));
         }
 
         result.EndTime = DateTime.UtcNow;

@@ -428,7 +428,7 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
 
         foreach (var t in tests)
         {
-            ushort encodedMpl = StsHelper.EncodeAmount(t.mpl / 10); // watts → 0.1W units
+            ushort encodedMpl = StsHelper.EncodeAmount(t.mpl);
             result.Steps.Add(await RunManagementStep($"MPL={t.mpl}W",
                 PAN_11, REG_MAIN, "01", "0", t.date, encodedMpl, 2014, t.expected));
         }
@@ -462,7 +462,7 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
 
         foreach (var t in tests)
         {
-            ushort encodedMpul = StsHelper.EncodeAmount(t.mpul / 10);
+            ushort encodedMpul = StsHelper.EncodeAmount(t.mpul);
             result.Steps.Add(await RunManagementStep($"MPUL={t.mpul}W",
                 PAN_11, REG_MAIN, "01", "6", t.date, encodedMpul, 2014, t.expected));
         }
