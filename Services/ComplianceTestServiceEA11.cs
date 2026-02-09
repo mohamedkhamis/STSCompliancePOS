@@ -728,19 +728,29 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
             ushort stsAmt = StsHelper.EncodeAmount(amount);
 
+            // Diagnostic: log parameters for debugging
+            Console.WriteLine($"[CREDIT-EA11] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} CreditType={creditType} Amount={amount} (STS=0x{stsAmt:X4}) TID={tid} (0x{tid:X})");
+
             string? token = vsm.Driver.GenerateCreditToken(pan, reg, "", ti, '1', 255,
                 creditType, tid, stsAmt);
+
+            // Diagnostic: log TX/RX
+            Console.WriteLine($"[CREDIT-EA11] TX: {vsm.Driver.LastTx}");
+            Console.WriteLine($"[CREDIT-EA11] RX: {vsm.Driver.LastRx}");
 
             if (token != null)
             {
                 result.Actual = StsHelper.FormatToken(token);
                 result.Passed = token == StsHelper.NormalizeToken(expected);
+                if (!result.Passed)
+                    Console.WriteLine($"[CREDIT-EA11] MISMATCH: expected={StsHelper.NormalizeToken(expected)} actual={token}");
             }
             else
             {
                 result.Actual = "(null)";
                 result.Passed = false;
                 result.ErrorInfo = vsm.Driver.LastError;
+                Console.WriteLine($"[CREDIT-EA11] ERROR: {vsm.Driver.LastError}");
             }
         }
         catch (Exception ex)
@@ -778,19 +788,29 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
             var (y, m, d, h, mn) = ParseDate(dateStr);
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
 
+            // Diagnostic: log parameters for debugging
+            Console.WriteLine($"[MGMT-EA11] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={mgmtType} Value={value} (0x{value:X4}) TID={tid} (0x{tid:X})");
+
             string? token = vsm.Driver.GenerateManagementToken(pan, reg, "", ti, '1', 255,
                 mgmtType, tid, value);
+
+            // Diagnostic: log TX/RX
+            Console.WriteLine($"[MGMT-EA11] TX: {vsm.Driver.LastTx}");
+            Console.WriteLine($"[MGMT-EA11] RX: {vsm.Driver.LastRx}");
 
             if (token != null)
             {
                 result.Actual = StsHelper.FormatToken(token);
                 result.Passed = token == StsHelper.NormalizeToken(expected);
+                if (!result.Passed)
+                    Console.WriteLine($"[MGMT-EA11] MISMATCH: expected={StsHelper.NormalizeToken(expected)} actual={token}");
             }
             else
             {
                 result.Actual = "(null)";
                 result.Passed = false;
                 result.ErrorInfo = vsm.Driver.LastError;
+                Console.WriteLine($"[MGMT-EA11] ERROR: {vsm.Driver.LastError}");
             }
         }
         catch (Exception ex)

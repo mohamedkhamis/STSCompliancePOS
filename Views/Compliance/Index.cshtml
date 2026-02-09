@@ -88,7 +88,14 @@
             <!-- CTSA03 Custom Parameters (shown when CTSA03 selected) -->
             <div id="ctsa03-params" style="display: none; margin-top: 12px;">
                 <div style="font-size: 11px; font-weight: 700; color: var(--warn); margin-bottom: 8px; letter-spacing: 1px;">CTSA03 PARAMETERS</div>
-                <div class="grid-2" style="gap: 8px;">
+                <div class="grid-3" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">EA (Encryption Algorithm)</label>
+                        <select class="form-control" id="ctsa03-ea" style="font-size: 12px;" onchange="onCtsa03EaChange()">
+                            <option value="7">EA07 (DES)</option>
+                            <option value="11">EA11 (AES)</option>
+                        </select>
+                    </div>
                     <div class="form-group" style="margin-bottom: 6px;">
                         <label style="font-size: 10px;">MeterPAN</label>
                         <select class="form-control" id="ctsa03-pan" style="font-size: 12px;">
@@ -270,6 +277,7 @@
 
         // CTSA03: use custom parameters from the form
         if (testId === 'CTSA03') {
+            const ea = parseInt(document.getElementById('ctsa03-ea').value);
             const pan = document.getElementById('ctsa03-pan').value;
             const reg = document.getElementById('ctsa03-reg').value;
             const ti = document.getElementById('ctsa03-ti').value;
@@ -281,7 +289,7 @@
 
             try {
                 await window.vsmConnection.hub.invoke("RunCTSA03WithParams",
-                    pan, reg, ti, mgmtType, value, dateVal, bd, expected, 7);
+                    pan, reg, ti, mgmtType, value, dateVal, bd, expected, ea);
             } catch (err) {
                 console.error("[VSM] RunCTSA03WithParams error:", err);
                 showWarnToast('Test Error', err.message || 'Failed to run CTSA03');
@@ -291,6 +299,18 @@
 
         const utility = document.getElementById('run-utility').value;
         await runSingleTest(testId, utility);
+    }
+
+    // Update CTSA03 defaults when EA changes
+    function onCtsa03EaChange() {
+        const ea = parseInt(document.getElementById('ctsa03-ea').value);
+        if (ea === 11) {
+            document.getElementById('ctsa03-value').value = '1';
+            document.getElementById('ctsa03-expected').value = '3449 4889 4753 7886 6499';
+        } else {
+            document.getElementById('ctsa03-value').value = '10';
+            document.getElementById('ctsa03-expected').value = '6896 1683 0643 2623 4122';
+        }
     }
 
     // Export results

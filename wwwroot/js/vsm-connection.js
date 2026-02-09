@@ -190,6 +190,7 @@ async function runSingleTest(testId, utilityType, ea) {
 
 // Generate single token via SignalR
 async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate, ea) {
+    debugger;
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
