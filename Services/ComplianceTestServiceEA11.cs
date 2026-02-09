@@ -890,4 +890,35 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
             return Task.FromResult<(string? token, string? error)>((null, ex.Message));
         }
     }
+
+    // =========================================================================
+    //  Single Management Token Generation (for manual vending with EA11)
+    // =========================================================================
+    public Task<(string? token, string? error)> GenerateSingleManagementToken(
+        string pan, string reg, string ti, string mgmtType,
+        ushort value, DateTime issueDate, int baseDate)
+    {
+        if (vsm.Driver == null)
+            return Task.FromResult<(string? token, string? error)>((null, "VSM not connected"));
+
+        try
+        {
+            vsm.Driver.EA = 11;
+
+            uint tid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
+                issueDate.Hour, issueDate.Minute, baseDate);
+
+            string? token = vsm.Driver.GenerateManagementToken(pan, reg, "", ti, '1', 255,
+                mgmtType, tid, value);
+
+            if (token != null)
+                return Task.FromResult<(string? token, string? error)>((StsHelper.FormatToken(token), null));
+            else
+                return Task.FromResult<(string? token, string? error)>((null, vsm.Driver.LastError));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult<(string? token, string? error)>((null, ex.Message));
+        }
+    }
 }

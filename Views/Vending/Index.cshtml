@@ -1,124 +1,271 @@
-@model VendRequest
+@inject STSCompliancePOS.Services.VSMConfiguration Config
 @{ ViewData["Title"] = "Vend Token"; }
 
 <div class="page-header">
-    <h2>Vend TransferCredit Token</h2>
-    <div class="subtitle">CTSA01 — Generate and verify STS tokens</div>
+    <h2>Vend Token</h2>
+    <div class="subtitle">Generate real STS tokens via VSM hardware</div>
 </div>
 
-<form asp-controller="Vending" asp-action="Generate" method="post">
-    <div class="grid-2">
-        <!-- APDU Parameters -->
+<!-- Connection Status Banner -->
+<div id="vend-conn-banner" class="card" style="padding: 10px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; border-color: @(ViewBag.IsConnected == true ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)");">
+    <div id="vend-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: @(ViewBag.IsConnected == true ? "var(--success)" : "var(--error)");"></div>
+    <span id="vend-status-text" style="font-size: 12px; color: @(ViewBag.IsConnected == true ? "var(--success)" : "var(--error)");">
+        @(ViewBag.IsConnected == true ? $"VSM Connected ({ViewBag.ConnectedPort})" : "VSM Not Connected — connect on the Connection page first")
+    </span>
+</div>
+
+<div class="grid-2">
+    <!-- APDU / Token Parameters -->
+    <div>
         <div class="card card-accent-blue">
-            <div class="card-title blue">APDU Parameters</div>
+            <div class="card-title blue">Token Parameters</div>
 
             <div class="form-group">
                 <label>MeterPAN</label>
-                <input type="text" class="form-control" name="MeterPAN" value="@Model.MeterPAN" />
+                <select class="form-control" id="vend-pan">
+                    <option value="@Config.TestPANs.PAN_11">@Config.TestPANs.PAN_11 (11-digit DRN)</option>
+                    <option value="@Config.TestPANs.PAN_13">@Config.TestPANs.PAN_13 (13-digit DRN)</option>
+                    <option value="@Config.TestPANs.PAN_CTSA15">@Config.TestPANs.PAN_CTSA15 (CTSA15)</option>
+                </select>
             </div>
 
             <div class="grid-2">
                 <div class="form-group">
-                    <label>SGC</label>
-                    <input type="text" class="form-control" name="SGC" value="@Model.SGC" />
+                    <label>Key Register</label>
+                    <select class="form-control" id="vend-reg">
+                        @foreach (var reg in Config.KeyRegisters)
+                        {
+                            <!option value="@reg.Value.Register"
+                                     selected="@reg.Value.IsDefault"
+                                     style="@(reg.Value.IsExpired ? "color:var(--error)" : "")">
+                                @reg.Key — @reg.Value.Description
+                            </!option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>TI</label>
+                    <input type="text" class="form-control" id="vend-ti" value="01" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Encryption Algorithm (EA)</label>
+                <select class="form-control" id="vend-ea">
+                    <option value="7">EA07 (STS 531-1-07)</option>
+                    <option value="11">EA11 (STS 531-1-11)</option>
+                </select>
+            </div>
+
+            <div class="grid-2">
+                <div class="info-row">
+                    <span class="label">DKGA</span>
+                    <span class="value mono">@Config.TokenGeneration.DKGA.ToString("D2")</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">KEN</span>
+                    <span class="value mono">255 (0xFF)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Base Date -->
+        <div class="card card-accent-purple">
+            <div class="card-title purple">Timing</div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Issue Date</label>
+                    <input type="datetime-local" class="form-control" id="vend-date" value="2014-03-01T13:00" />
                 </div>
                 <div class="form-group">
                     <label>Base Date</label>
-                    <select class="form-control" name="BaseDate">
-                        <option value="2014" selected>2014</option>
+                    <select class="form-control" id="vend-bd">
+                        <option value="2014">2014</option>
                         <option value="2035">2035</option>
                     </select>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div class="grid-3">
-                <div class="form-group">
-                    <label>KRN</label>
-                    <input type="number" class="form-control" name="KRN" value="@Model.KRN" />
-                </div>
-                <div class="form-group">
-                    <label>TI</label>
-                    <input type="number" class="form-control" name="TI" value="@Model.TI" />
-                </div>
-                <div class="form-group">
-                    <label>KT</label>
-                    <input type="text" class="form-control" value="2" disabled />
+    <!-- Token Type & Generation -->
+    <div>
+        <div class="card card-accent-green">
+            <div class="card-title green">Token Type</div>
+
+            <div class="form-group">
+                <label>Category</label>
+                <select class="form-control" id="vend-category" onchange="onCategoryChanged()">
+                    <option value="credit">Credit Token (TransferCredit)</option>
+                    <option value="management">Management Token</option>
+                </select>
+            </div>
+
+            <!-- Credit-specific fields -->
+            <div id="credit-fields">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Credit Type</label>
+                        <select class="form-control" id="vend-ct">
+                            <option value="0">Electricity (kWh)</option>
+                            <option value="1">Water (kL)</option>
+                            <option value="2">Gas (m3)</option>
+                            <option value="3">Time (min)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" class="form-control" id="vend-amount" value="0.1" step="0.1" />
+                    </div>
                 </div>
             </div>
 
-            <div class="info-row">
-                <span class="label">DKGA / EA</span>
-                <span class="value mono">04 / 07</span>
-            </div>
-            <div class="info-row">
-                <span class="label">KEN</span>
-                <span class="value mono">255 (0xFF)</span>
-            </div>
-            <div class="info-row">
-                <span class="label">VUDK</span>
-                <span class="value mono" style="font-size: 10px;">ABABABABABABABAB9494..0123456716</span>
+            <!-- Management-specific fields -->
+            <div id="mgmt-fields" style="display: none;">
+                <div class="form-group">
+                    <label>Management Type</label>
+                    <select class="form-control" id="vend-mgmt-type">
+                        <option value="0">SetMaximumPowerLimit (MPL)</option>
+                        <option value="1">ClearCredit</option>
+                        <option value="5">ClearTamperCondition</option>
+                        <option value="6">SetMaxPhasePowerUnbalanceLimit (MPUL)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Value (register/limit)</label>
+                    <input type="number" class="form-control" id="vend-mgmt-value" value="65535" />
+                    <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">
+                        ClearCredit: 0xFFFF (65535) · MPL/MPUL: power in 0.1W units · ClearTamper: 0
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Token Request -->
-        <div>
+        <button class="btn btn-primary" style="width: 100%; text-align: center; padding: 14px;" onclick="vendGenerateToken()">
+            GENERATE TOKEN
+        </button>
+
+        <!-- Result Display -->
+        <div id="vend-result" style="display: none; margin-top: 16px;">
             <div class="card card-accent-green">
-                <div class="card-title green">Token Request</div>
-
-                <div class="form-group">
-                    <label>Token Type</label>
-                    <select class="form-control" name="TokenType">
-                        <option>TransferCredit</option>
-                        <option>ClearCredit</option>
-                        <option>SetMaximumPowerLimit</option>
-                        <option>ClearTamperCondition</option>
-                        <option>SetMaxPhasePowerUnbalanceLimit</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Utility Type</label>
-                    <select class="form-control" name="UtilityType">
-                        <option value="Electricity">Electricity (kWh)</option>
-                        <option value="Water">Water (kl)</option>
-                        <option value="Gas">Gas (m³)</option>
-                        <option value="Time">Time (min)</option>
-                    </select>
-                </div>
-
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>Amount</label>
-                        <input type="text" class="form-control" name="Amount" value="0.1" />
-                    </div>
-                    <div class="form-group">
-                        <label>Unit</label>
-                        <input type="text" class="form-control" name="Unit" value="kWh" />
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Token Issue Date</label>
-                    <input type="datetime-local" class="form-control" name="TokenIssueDate"
-                           value="2014-03-01T13:00:00" />
-                </div>
-
-                <div class="info-row">
-                    <span class="label">RND (Fixed for test)</span>
-                    <span class="value mono">5</span>
-                </div>
+                <div class="card-title green">Generated Token</div>
+                <div class="token-label">20-Digit STS Token</div>
+                <div class="token-display" id="vend-token-value" style="cursor: pointer;" onclick="copyToken()" title="Click to copy"></div>
+                <div id="vend-token-ea" style="font-size: 11px; color: var(--text-dim); margin-top: 6px;"></div>
             </div>
+        </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%; text-align: center; padding: 14px;">
-                ⚡ GENERATE TOKEN
-            </button>
+        <div id="vend-error" style="display: none; margin-top: 16px;">
+            <div class="verify-box verify-fail">
+                <span class="verify-text" id="vend-error-text"></span>
+            </div>
+        </div>
 
-            <div class="card" style="background: #000; border-color: rgba(0,212,170,0.2); margin-top: 16px;">
-                <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">IDRecord (TCT=01)</div>
-                <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 1px;">
-                    600727000000000009===0107201457011
-                </div>
+        <!-- Expected Token Comparison -->
+        <div class="card" style="margin-top: 16px;">
+            <div class="form-group">
+                <label>Expected Token (optional, for comparison)</label>
+                <input type="text" class="form-control" id="vend-expected" placeholder="e.g. 7063 0503 4700 2872 6114" />
+            </div>
+            <div id="vend-compare" style="display: none;"></div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="card">
+            <div class="card-title" style="color: var(--text-dim);">Activity Log</div>
+            <div id="progress-log" style="height: 120px; overflow-y: auto; background: #000; border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);">
+                <div class="log-entry">[Ready] Waiting for token generation...</div>
             </div>
         </div>
     </div>
-</form>
+</div>
+
+@section Scripts {
+<script>
+    function onCategoryChanged() {
+        const cat = document.getElementById('vend-category').value;
+        document.getElementById('credit-fields').style.display = cat === 'credit' ? 'block' : 'none';
+        document.getElementById('mgmt-fields').style.display = cat === 'management' ? 'block' : 'none';
+    }
+
+    async function vendGenerateToken() {
+        if (!window.vsmConnection.isConnected) {
+            alert('VSM not connected. Go to Connection page first.');
+            return;
+        }
+
+        const pan = document.getElementById('vend-pan').value;
+        const reg = document.getElementById('vend-reg').value;
+        const ti = document.getElementById('vend-ti').value;
+        const dateStr = document.getElementById('vend-date').value;
+        const bd = parseInt(document.getElementById('vend-bd').value);
+        const ea = parseInt(document.getElementById('vend-ea').value);
+        const category = document.getElementById('vend-category').value;
+
+        // Hide previous results
+        document.getElementById('vend-result').style.display = 'none';
+        document.getElementById('vend-error').style.display = 'none';
+        document.getElementById('vend-compare').style.display = 'none';
+
+        if (category === 'credit') {
+            const ct = document.getElementById('vend-ct').value;
+            const amount = parseFloat(document.getElementById('vend-amount').value);
+            await generateToken(pan, reg, ti, ct, amount, dateStr, bd, ea);
+        } else {
+            const mgmtType = document.getElementById('vend-mgmt-type').value;
+            const value = parseInt(document.getElementById('vend-mgmt-value').value);
+            await generateManagementToken(pan, reg, ti, mgmtType, value, dateStr, bd, ea);
+        }
+    }
+
+    // Handle token received (both credit and management use ReceiveToken)
+    window.onTokenReceived = function(result) {
+        const resultDiv = document.getElementById('vend-result');
+        const errorDiv = document.getElementById('vend-error');
+        const valueDiv = document.getElementById('vend-token-value');
+        const eaDiv = document.getElementById('vend-token-ea');
+        const compareDiv = document.getElementById('vend-compare');
+        const expectedInput = document.getElementById('vend-expected');
+
+        if (result.token) {
+            valueDiv.textContent = result.token;
+            eaDiv.textContent = `EA${result.ea === 11 ? '11' : '07'} · Generated at ${new Date().toLocaleTimeString()}`;
+            resultDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+
+            // Compare with expected if provided
+            const expected = expectedInput.value.replace(/\s/g, '');
+            if (expected) {
+                const actual = result.token.replace(/\s/g, '');
+                if (actual === expected) {
+                    compareDiv.innerHTML = '<div class="verify-box verify-pass"><span class="verify-text">MATCH — Token matches expected value</span></div>';
+                } else {
+                    compareDiv.innerHTML = '<div class="verify-box verify-fail"><span class="verify-text">MISMATCH — Token does not match expected value</span></div>';
+                }
+                compareDiv.style.display = 'block';
+            }
+        } else {
+            document.getElementById('vend-error-text').textContent = 'Error: ' + result.error;
+            errorDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+        }
+    };
+
+    function copyToken() {
+        const token = document.getElementById('vend-token-value').textContent;
+        navigator.clipboard.writeText(token);
+    }
+
+    // Update connection banner on status change
+    window.addEventListener('vsmStatusChanged', (e) => {
+        const status = e.detail;
+        const dot = document.getElementById('vend-status-dot');
+        const text = document.getElementById('vend-status-text');
+        if (dot && text) {
+            dot.style.background = status.isConnected ? 'var(--success)' : 'var(--error)';
+            text.textContent = status.isConnected ? `VSM Connected (${status.connectedPort})` : 'VSM Not Connected';
+            text.style.color = status.isConnected ? 'var(--success)' : 'var(--error)';
+        }
+    });
+</script>
+}

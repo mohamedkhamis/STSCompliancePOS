@@ -56,6 +56,11 @@ async function initSignalR() {
         if (window.onTokenReceived) window.onTokenReceived(result);
     });
 
+    connection.on("ReceiveKeychangeResult", (result) => {
+        console.log("[VSM] Keychange result:", result);
+        if (window.onKeychangeReceived) window.onKeychangeReceived(result);
+    });
+
     connection.on("ReceiveFullPOSComplete", (result) => {
         console.log("[VSM] Full POS complete:", result);
         if (window.onFullPOSComplete) window.onFullPOSComplete(result);
@@ -195,6 +200,36 @@ async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDa
             pan, reg, ti, creditType, amount, issueDate, baseDate, ea || 7);
     } catch (err) {
         console.error("[VSM] GenerateToken error:", err);
+    }
+}
+
+// Generate management token via SignalR
+async function generateManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, ea) {
+    if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
+        alert("VSM not connected");
+        return;
+    }
+
+    try {
+        await window.vsmConnection.hub.invoke("GenerateManagementToken",
+            pan, reg, ti, mgmtType, value, issueDate, baseDate, ea || 7);
+    } catch (err) {
+        console.error("[VSM] GenerateManagementToken error:", err);
+    }
+}
+
+// Generate keychange tokens via SignalR
+async function generateKeychangeTokens(pan, oldReg, newReg, oldTi, newTi, ea) {
+    if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
+        alert("VSM not connected");
+        return;
+    }
+
+    try {
+        await window.vsmConnection.hub.invoke("GenerateKeychangeTokens",
+            pan, oldReg, newReg, oldTi, newTi, ea || 7);
+    } catch (err) {
+        console.error("[VSM] GenerateKeychangeTokens error:", err);
     }
 }
 

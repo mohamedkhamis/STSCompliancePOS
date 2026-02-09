@@ -245,4 +245,119 @@ public class TestHub(
         else
             await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
     }
+
+    // Generate management token (ClearCredit, SetMaxPowerLimit, ClearTamper, SetMPUL)
+    public async Task GenerateManagementToken(string pan, string reg, string ti, string mgmtType,
+        ushort value, string issueDateStr, int baseDate, int ea = 7)
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        DateTime issueDate = DateTime.Parse(issueDateStr);
+
+        (string? token, string? error) result;
+        if (ea == 11)
+            result = await testsEA11.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+        else
+            result = await testsEA07.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+
+        if (result.token != null)
+            await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
+        else
+            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+    }
+
+    // Generate keychange tokens (2 KCTs for EA07, 4 KCTs for EA11)
+    public async Task GenerateKeychangeTokens(string pan, string oldReg, string newReg,
+        string oldTi, string newTi, int ea = 7)
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        if (vsm.Driver == null)
+        {
+            await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+            {
+                FirstKCT = (string?)null, SecondKCT = (string?)null,
+                ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                Error = "VSM driver not available"
+            });
+            return;
+        }
+
+        try
+        {
+            if (ea == 11)
+            {
+                vsm.Driver.EA = 11;
+                var (t1, t2, t3, t4) = vsm.Driver.GenerateKeychangeQuad(pan, oldReg, newReg,
+                    "", "", oldTi, newTi, '1', '1', 255, 255, '0');
+
+                if (t1 != null && t2 != null && t3 != null && t4 != null)
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = StsHelper.FormatToken(t1),
+                        SecondKCT = StsHelper.FormatToken(t2),
+                        ThirdKCT = (string?)StsHelper.FormatToken(t3),
+                        FourthKCT = (string?)StsHelper.FormatToken(t4),
+                        Error = (string?)null
+                    });
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = (string?)null, SecondKCT = (string?)null,
+                        ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                        Error = vsm.Driver.LastError ?? "Unknown error"
+                    });
+                }
+            }
+            else
+            {
+                vsm.Driver.EA = 7;
+                var (t1, t2) = vsm.Driver.GenerateKeychangeTokens(pan, oldReg, newReg,
+                    "", "", oldTi, newTi, '1', '1', 255, 255, '0');
+
+                if (t1 != null && t2 != null)
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = StsHelper.FormatToken(t1),
+                        SecondKCT = StsHelper.FormatToken(t2),
+                        ThirdKCT = (string?)null,
+                        FourthKCT = (string?)null,
+                        Error = (string?)null
+                    });
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = (string?)null, SecondKCT = (string?)null,
+                        ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                        Error = vsm.Driver.LastError ?? "Unknown error"
+                    });
+                }
+            }
+
+            await Task.Delay(50);
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+            {
+                FirstKCT = (string?)null, SecondKCT = (string?)null,
+                ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                Error = ex.Message
+            });
+        }
+    }
 }
