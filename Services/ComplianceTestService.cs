@@ -202,12 +202,19 @@ public class ComplianceTestService(VSMConnectionService vsm)
     // =========================================================================
     public async Task<TestRunResult> RunCTSA03(Action<string>? progress = null)
     {
-        var result = new TestRunResult { TestId = "CTSA03", TestName = "SetMaximumPowerLimit", StartTime = DateTime.UtcNow };
-        progress?.Invoke("Running CTSA03 — SetMaximumPowerLimit...");
+        return await RunCTSA03(PAN_11, REG_MAIN, "01", "0", 10, "2024-03-28 09:01", 2014,
+            "6896 1683 0643 2623 4122", progress);
+    }
 
-        result.Steps.Add(await RunManagementStep("SetMPL 1kW",
-            PAN_11, REG_MAIN, "01", "0", "2024-03-28 09:01", 10, 2014,
-            "6896 1683 0643 2623 4122"));
+    public async Task<TestRunResult> RunCTSA03(string pan, string reg, string ti,
+        string mgmtType, ushort value, string issueDate, int baseDate, string expected,
+        Action<string>? progress = null)
+    {
+        var result = new TestRunResult { TestId = "CTSA03", TestName = "SetMaximumPowerLimit", StartTime = DateTime.UtcNow };
+        progress?.Invoke($"Running CTSA03 — SetMaximumPowerLimit (PAN={pan}, REG={reg}, Value={value})...");
+
+        result.Steps.Add(await RunManagementStep($"SetMPL value={value}",
+            pan, reg, ti, mgmtType, issueDate, value, baseDate, expected));
 
         result.EndTime = DateTime.UtcNow;
         return result;

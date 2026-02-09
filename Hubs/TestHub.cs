@@ -223,6 +223,30 @@ public class TestHub(
         }
     }
 
+    // Run CTSA03 with custom parameters from the view
+    public async Task RunCTSA03WithParams(string pan, string reg, string ti, string mgmtType,
+        ushort value, string issueDate, int baseDate, string expected, int ea = 7)
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        if (vsm.Driver != null) vsm.Driver.EA = ea;
+
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            $"Running CTSA03 with custom params (EA{(ea == 11 ? "11" : "07")}, PAN={pan}, Value={value})...");
+
+        var service = ea == 11 ? (object)testsEA11 : testsEA07;
+        var result = ea == 11
+            ? await testsEA11.RunCTSA03(pan, reg, ti, mgmtType, value, issueDate, baseDate, expected)
+            : await testsEA07.RunCTSA03(pan, reg, ti, mgmtType, value, issueDate, baseDate, expected);
+
+        resultsStore.StoreTestResult(result);
+        await Clients.Caller.SendAsync("ReceiveSingleTestComplete", result);
+    }
+
     // Generate single token
     public async Task GenerateToken(string pan, string reg, string ti, string creditType,
         decimal amount, string issueDateStr, int baseDate, int ea = 7)

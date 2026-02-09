@@ -84,6 +84,61 @@
                     <button class="btn btn-secondary" onclick="runIndividualTest()">Run</button>
                 </div>
             </div>
+
+            <!-- CTSA03 Custom Parameters (shown when CTSA03 selected) -->
+            <div id="ctsa03-params" style="display: none; margin-top: 12px;">
+                <div style="font-size: 11px; font-weight: 700; color: var(--warn); margin-bottom: 8px; letter-spacing: 1px;">CTSA03 PARAMETERS</div>
+                <div class="grid-2" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">MeterPAN</label>
+                        <select class="form-control" id="ctsa03-pan" style="font-size: 12px;">
+                            <option value="600727000000000009">600727000000000009 (11-digit)</option>
+                            <option value="000001000000000082">000001000000000082 (13-digit)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Key Register</label>
+                        <select class="form-control" id="ctsa03-reg" style="font-size: 12px;">
+                            <option value="01">01 — Main VUDK</option>
+                            <option value="02">02 — KRN=2</option>
+                            <option value="06">06 — BD=2035</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-4" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">TI</label>
+                        <input type="text" class="form-control" id="ctsa03-ti" value="01" style="font-size: 12px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">MgmtType</label>
+                        <select class="form-control" id="ctsa03-mgmt" style="font-size: 12px;">
+                            <option value="0">0 — SetMaxPowerLimit</option>
+                            <option value="1">1 — ClearCredit</option>
+                            <option value="5">5 — ClearTamper</option>
+                            <option value="6">6 — SetMPUL</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Value</label>
+                        <input type="number" class="form-control" id="ctsa03-value" value="10" style="font-size: 12px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Base Date</label>
+                        <input type="number" class="form-control" id="ctsa03-bd" value="2014" style="font-size: 12px;" />
+                    </div>
+                </div>
+                <div class="grid-2" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Issue Date</label>
+                        <input type="datetime-local" class="form-control" id="ctsa03-date" value="2024-03-28T09:01" style="font-size: 12px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Expected Token</label>
+                        <input type="text" class="form-control" id="ctsa03-expected" value="6896 1683 0643 2623 4122" style="font-size: 12px; font-family: var(--mono);" />
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -190,6 +245,12 @@
         await runFullTestSuite(utility, currency, keychange, extended);
     }
 
+    // Show/hide CTSA03 params when test selection changes
+    document.getElementById('individual-test').addEventListener('change', function() {
+        const params = document.getElementById('ctsa03-params');
+        params.style.display = this.value === 'CTSA03' ? 'block' : 'none';
+    });
+
     // Run individual test
     async function runIndividualTest() {
         const testId = document.getElementById('individual-test').value;
@@ -203,12 +264,32 @@
             return;
         }
 
-        const utility = document.getElementById('run-utility').value;
-
         document.getElementById('realtime-results').style.display = 'block';
         const log = document.getElementById('realtime-log');
         log.innerHTML = `<div style="color: var(--accent);">Running ${testId}...</div>`;
 
+        // CTSA03: use custom parameters from the form
+        if (testId === 'CTSA03') {
+            const pan = document.getElementById('ctsa03-pan').value;
+            const reg = document.getElementById('ctsa03-reg').value;
+            const ti = document.getElementById('ctsa03-ti').value;
+            const mgmtType = document.getElementById('ctsa03-mgmt').value;
+            const value = parseInt(document.getElementById('ctsa03-value').value);
+            const bd = parseInt(document.getElementById('ctsa03-bd').value);
+            const dateVal = document.getElementById('ctsa03-date').value.replace('T', ' ');
+            const expected = document.getElementById('ctsa03-expected').value;
+
+            try {
+                await window.vsmConnection.hub.invoke("RunCTSA03WithParams",
+                    pan, reg, ti, mgmtType, value, dateVal, bd, expected, 7);
+            } catch (err) {
+                console.error("[VSM] RunCTSA03WithParams error:", err);
+                showWarnToast('Test Error', err.message || 'Failed to run CTSA03');
+            }
+            return;
+        }
+
+        const utility = document.getElementById('run-utility').value;
         await runSingleTest(testId, utility);
     }
 
