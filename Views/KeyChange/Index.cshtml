@@ -1,102 +1,335 @@
-@model KeyChangeRequest
+@inject STSCompliancePOS.Services.VSMConfiguration Config
 @{ ViewData["Title"] = "Key Change"; }
+
+<!-- Toast Notification -->
+<div id="toast-notification" style="display: none; position: fixed; top: 24px; right: 24px; z-index: 9999; min-width: 320px; padding: 16px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 1px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: opacity 0.3s, transform 0.3s; transform: translateY(-10px); opacity: 0;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="toast-icon" style="font-size: 24px;"></span>
+        <div>
+            <div id="toast-title" style="font-size: 16px;"></div>
+            <div id="toast-detail" style="font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.8;"></div>
+        </div>
+    </div>
+</div>
 
 <div class="page-header">
     <h2>Key Change</h2>
-    <div class="subtitle">CTSA05 — Generate Keychange Token Set</div>
+    <div class="subtitle">Generate real Keychange Token Sets via VSM hardware</div>
 </div>
 
-<form asp-controller="KeyChange" asp-action="Generate" method="post">
-    <div class="grid-2">
-        <!-- Current Key -->
-        <div class="card card-accent-warn">
-            <div class="card-title warn">Current Key (Initial)</div>
+<!-- Connection Status Banner -->
+<div id="kc-conn-banner" class="card" style="padding: 10px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; border-color: @(ViewBag.IsConnected == true ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)");">
+    <div id="kc-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: @(ViewBag.IsConnected == true ? "var(--success)" : "var(--error)");"></div>
+    <span id="kc-status-text" style="font-size: 12px; color: @(ViewBag.IsConnected == true ? "var(--success)" : "var(--error)");">
+        @(ViewBag.IsConnected == true ? $"VSM Connected ({ViewBag.ConnectedPort})" : "VSM Not Connected — connect on the Connection page first")
+    </span>
+</div>
+
+<div class="grid-2">
+    <!-- Key Parameters -->
+    <div>
+        <div class="card card-accent-blue">
+            <div class="card-title blue">Meter & Key Parameters</div>
+
             <div class="form-group">
-                <label>SGC</label>
-                <input type="text" class="form-control" name="InitialSGC" value="@Model.InitialSGC" />
+                <label>MeterPAN</label>
+                <select class="form-control" id="kc-pan">
+                    <option value="@Config.TestPANs.PAN_11">@Config.TestPANs.PAN_11 (11-digit DRN)</option>
+                    <option value="@Config.TestPANs.PAN_13">@Config.TestPANs.PAN_13 (13-digit DRN)</option>
+                    <option value="@Config.TestPANs.PAN_CTSA15">@Config.TestPANs.PAN_CTSA15 (CTSA15)</option>
+                </select>
             </div>
+
+            <div class="form-group">
+                <label>Encryption Algorithm (EA)</label>
+                <select class="form-control" id="kc-ea">
+                    <option value="7">EA07 — 2 KCTs (STS 531-1-07)</option>
+                    <option value="11">EA11 — 4 KCTs (STS 531-1-11)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Old Key -->
+        <div class="card card-accent-warn">
+            <div class="card-title warn">Current Key (Old)</div>
             <div class="grid-2">
                 <div class="form-group">
-                    <label>KRN</label>
-                    <input type="number" class="form-control" name="InitialKRN" value="@Model.InitialKRN" />
+                    <label>Old Key Register</label>
+                    <select class="form-control" id="kc-old-reg">
+                        @foreach (var reg in Config.KeyRegisters)
+                        {
+                            <!option value="@reg.Value.Register"
+                                     selected="@reg.Value.IsDefault"
+                                     style="@(reg.Value.IsExpired ? "color:var(--error)" : "")">
+                                @reg.Key — @reg.Value.Description
+                            </!option>
+                        }
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>TI</label>
-                    <input type="number" class="form-control" name="InitialTI" value="@Model.InitialTI" />
+                    <label>Old TI</label>
+                    <input type="text" class="form-control" id="kc-old-ti" value="01" />
                 </div>
-            </div>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Base Date</label>
-                    <input type="number" class="form-control" name="InitialBaseDate" value="@Model.InitialBaseDate" />
-                </div>
-                <div class="form-group">
-                    <label>KEN</label>
-                    <input type="number" class="form-control" name="InitialKEN" value="@Model.InitialKEN" />
-                </div>
-            </div>
-            <div class="info-row">
-                <span class="label">Rollover Bit</span>
-                <span class="value mono">0</span>
             </div>
         </div>
 
         <!-- New Key -->
         <div class="card card-accent-green">
             <div class="card-title green">New Key Configuration</div>
-            <div class="form-group">
-                <label>SGC</label>
-                <input type="text" class="form-control" name="NewSGC" value="@Model.NewSGC" />
-            </div>
             <div class="grid-2">
                 <div class="form-group">
-                    <label>KRN</label>
-                    <input type="number" class="form-control" name="NewKRN" value="@Model.NewKRN" />
+                    <label>New Key Register</label>
+                    <select class="form-control" id="kc-new-reg">
+                        @foreach (var reg in Config.KeyRegisters)
+                        {
+                            <!option value="@reg.Value.Register"
+                                     style="@(reg.Value.IsExpired ? "color:var(--error)" : "")">
+                                @reg.Key — @reg.Value.Description
+                            </!option>
+                        }
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>TI</label>
-                    <input type="number" class="form-control" name="NewTI" value="@Model.NewTI" />
+                    <label>New TI</label>
+                    <input type="text" class="form-control" id="kc-new-ti" value="02" />
                 </div>
-            </div>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Base Date</label>
-                    <input type="number" class="form-control" name="NewBaseDate" value="@Model.NewBaseDate" />
-                </div>
-                <div class="form-group">
-                    <label>KEN</label>
-                    <input type="number" class="form-control" name="NewKEN" value="@Model.NewKEN" />
-                </div>
-            </div>
-            <div class="info-row">
-                <span class="label">Rollover Bit</span>
-                <span class="value mono">0</span>
             </div>
         </div>
-    </div>
 
-    <!-- Meter Info -->
-    <div class="card card-accent-blue">
-        <div class="card-title blue">Meter</div>
-        <div class="grid-3">
-            <div class="form-group">
-                <label>MeterPAN</label>
-                <input type="text" class="form-control" name="MeterPAN" value="@Model.MeterPAN" />
-            </div>
-            <div class="info-row" style="align-self: end; padding-bottom: 14px;">
-                <span class="label">TCT</span>
-                <span class="value mono">01, 02</span>
-            </div>
-            <div class="info-row" style="align-self: end; padding-bottom: 14px;">
-                <span class="label">EA</span>
-                <span class="value mono">07</span>
-            </div>
-        </div>
-    </div>
-
-    <div style="text-align: center; margin-top: 12px;">
-        <button type="submit" class="btn btn-primary" style="padding: 14px 40px;">
-            🔑 GENERATE KEYCHANGE SET
+        <button class="btn btn-primary" style="width: 100%; text-align: center; padding: 14px;" onclick="kcGenerate()">
+            GENERATE KEYCHANGE SET
         </button>
     </div>
-</form>
+
+    <!-- Results -->
+    <div>
+        <div id="kc-result" style="display: none;">
+            <!-- 1st KCT -->
+            <div class="card card-accent-green">
+                <div class="card-title green">1st Section Decoder Key Token</div>
+                <div class="token-label">1st KCT (Set1stSectionDecoderKey)</div>
+                <div class="token-display" id="kc-token-1"></div>
+            </div>
+
+            <!-- 2nd KCT -->
+            <div class="card card-accent-blue">
+                <div class="card-title blue">2nd Section Decoder Key Token</div>
+                <div class="token-label">2nd KCT (Set2ndSectionDecoderKey)</div>
+                <div class="token-display" id="kc-token-2"></div>
+            </div>
+
+            <!-- 3rd KCT (EA11 only) -->
+            <div id="kc-token-3-card" class="card card-accent-purple" style="display: none;">
+                <div class="card-title purple">3rd Section Decoder Key Token</div>
+                <div class="token-label">3rd KCT (Set3rdSectionDecoderKey)</div>
+                <div class="token-display" id="kc-token-3"></div>
+            </div>
+
+            <!-- 4th KCT (EA11 only) -->
+            <div id="kc-token-4-card" class="card card-accent-warn" style="display: none;">
+                <div class="card-title warn">4th Section Decoder Key Token</div>
+                <div class="token-label">4th KCT (Set4thSectionDecoderKey)</div>
+                <div class="token-display" id="kc-token-4"></div>
+            </div>
+
+            <div id="kc-ea-info" style="font-size: 11px; color: var(--text-dim); margin-top: 6px; text-align: center;"></div>
+        </div>
+
+        <div id="kc-error" style="display: none; margin-top: 16px;">
+            <div class="verify-box verify-fail">
+                <span class="verify-text" id="kc-error-text"></span>
+            </div>
+        </div>
+
+        <!-- Key Migration Summary -->
+        <div id="kc-summary" class="card card-accent-purple" style="display: none; margin-top: 16px;">
+            <div class="card-title purple">Key Migration Details</div>
+            <div class="info-row">
+                <span class="label">Old Register</span>
+                <span class="value mono" id="kc-sum-old-reg"></span>
+            </div>
+            <div class="info-row">
+                <span class="label">New Register</span>
+                <span class="value mono" id="kc-sum-new-reg"></span>
+            </div>
+            <div class="info-row">
+                <span class="label">Old TI → New TI</span>
+                <span class="value mono" id="kc-sum-ti"></span>
+            </div>
+            <div class="info-row">
+                <span class="label">EA</span>
+                <span class="value mono" id="kc-sum-ea"></span>
+            </div>
+            <div class="info-row">
+                <span class="label">KCT Count</span>
+                <span class="value mono" id="kc-sum-count"></span>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="card" style="margin-top: 16px;">
+            <div class="card-title" style="color: var(--text-dim);">Activity Log</div>
+            <div id="progress-log" style="height: 120px; overflow-y: auto; background: #000; border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);">
+                <div class="log-entry">[Ready] Waiting for keychange generation...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    async function kcGenerate() {
+        if (!window.vsmConnection.isConnected) {
+            showWarnToast('VSM Not Connected', 'Go to Connection page first.');
+            return;
+        }
+
+        const pan = document.getElementById('kc-pan').value;
+        const oldReg = document.getElementById('kc-old-reg').value;
+        const newReg = document.getElementById('kc-new-reg').value;
+        const oldTi = document.getElementById('kc-old-ti').value;
+        const newTi = document.getElementById('kc-new-ti').value;
+        const ea = parseInt(document.getElementById('kc-ea').value);
+
+        // Hide previous results
+        document.getElementById('kc-result').style.display = 'none';
+        document.getElementById('kc-error').style.display = 'none';
+        document.getElementById('kc-summary').style.display = 'none';
+
+        await generateKeychangeTokens(pan, oldReg, newReg, oldTi, newTi, ea);
+    }
+
+    // Handle keychange result
+    window.onKeychangeReceived = function(result) {
+        const resultDiv = document.getElementById('kc-result');
+        const errorDiv = document.getElementById('kc-error');
+        const summaryDiv = document.getElementById('kc-summary');
+
+        if (result.error) {
+            document.getElementById('kc-error-text').textContent = 'Error: ' + result.error;
+            errorDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+            summaryDiv.style.display = 'none';
+
+            // Log error to test log
+            const errPan = document.getElementById('kc-pan').value;
+            const errEa = parseInt(document.getElementById('kc-ea').value);
+            logTokenTest(
+                'KeyChange', errEa, 'management', errPan,
+                document.getElementById('kc-old-reg').value,
+                document.getElementById('kc-old-ti').value,
+                null, null,
+                'KeyChange', null,
+                null, null,
+                null, null, false
+            );
+
+            showKcToast(false, 'KeyChange Failed', result.error);
+            return;
+        }
+
+        // Show tokens
+        document.getElementById('kc-token-1').textContent = result.firstKCT || '—';
+        document.getElementById('kc-token-2').textContent = result.secondKCT || '—';
+
+        const ea = parseInt(document.getElementById('kc-ea').value);
+        const hasQuad = result.thirdKCT && result.fourthKCT;
+
+        // Show/hide 3rd and 4th KCT cards
+        document.getElementById('kc-token-3-card').style.display = hasQuad ? 'block' : 'none';
+        document.getElementById('kc-token-4-card').style.display = hasQuad ? 'block' : 'none';
+
+        if (hasQuad) {
+            document.getElementById('kc-token-3').textContent = result.thirdKCT;
+            document.getElementById('kc-token-4').textContent = result.fourthKCT;
+        }
+
+        document.getElementById('kc-ea-info').textContent =
+            `EA${ea === 11 ? '11' : '07'} · ${hasQuad ? '4' : '2'} KCTs · Generated at ${new Date().toLocaleTimeString()}`;
+
+        resultDiv.style.display = 'block';
+        errorDiv.style.display = 'none';
+
+        // Log each KCT to test log
+        const pan = document.getElementById('kc-pan').value;
+        const kctLabels = ['Set1stSectionDecoderKey', 'Set2ndSectionDecoderKey', 'Set3rdSectionDecoderKey', 'Set4thSectionDecoderKey'];
+        const kctTokens = [result.firstKCT, result.secondKCT, result.thirdKCT, result.fourthKCT];
+        for (let i = 0; i < kctTokens.length; i++) {
+            if (kctTokens[i]) {
+                logTokenTest(
+                    kctLabels[i], ea, 'management', pan,
+                    document.getElementById('kc-old-reg').value,
+                    document.getElementById('kc-old-ti').value,
+                    null, null,
+                    'KeyChange', i + 1,
+                    null, null,
+                    null, kctTokens[i], true
+                );
+            }
+        }
+
+        // Show success toast
+        showKcToast(true, `${hasQuad ? '4' : '2'} KCTs Generated`, `EA${ea === 11 ? '11' : '07'} \u2014 ${pan}`);
+
+        // Show migration summary
+        const oldReg = document.getElementById('kc-old-reg');
+        const newReg = document.getElementById('kc-new-reg');
+        document.getElementById('kc-sum-old-reg').textContent = `VKREG${oldReg.value} (${oldReg.options[oldReg.selectedIndex].text.trim()})`;
+        document.getElementById('kc-sum-new-reg').textContent = `VKREG${newReg.value} (${newReg.options[newReg.selectedIndex].text.trim()})`;
+        document.getElementById('kc-sum-ti').textContent = `${document.getElementById('kc-old-ti').value} → ${document.getElementById('kc-new-ti').value}`;
+        document.getElementById('kc-sum-ea').textContent = ea === 11 ? 'EA11 (STS 531-1-11)' : 'EA07 (STS 531-1-07)';
+        document.getElementById('kc-sum-count').textContent = hasQuad ? '4 (Quad — EA11)' : '2 (Pair — EA07)';
+        summaryDiv.style.display = 'block';
+    };
+
+    function showKcToast(success, title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+        toast.style.border = success ? '2px solid rgba(16,185,129,0.5)' : '2px solid rgba(239,68,68,0.5)';
+        toast.style.color = success ? 'var(--success)' : 'var(--error)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
+    function showWarnToast(title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = 'rgba(245,158,11,0.12)';
+        toast.style.border = '2px solid rgba(245,158,11,0.5)';
+        toast.style.color = 'var(--warn)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = '\u26A0\uFE0F';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
+    // Update connection banner on status change
+    window.addEventListener('vsmStatusChanged', (e) => {
+        const status = e.detail;
+        const dot = document.getElementById('kc-status-dot');
+        const text = document.getElementById('kc-status-text');
+        if (dot && text) {
+            dot.style.background = status.isConnected ? 'var(--success)' : 'var(--error)';
+            text.textContent = status.isConnected ? `VSM Connected (${status.connectedPort})` : 'VSM Not Connected';
+            text.style.color = status.isConnected ? 'var(--success)' : 'var(--error)';
+        }
+    });
+</script>
+}

@@ -56,6 +56,16 @@ async function initSignalR() {
         if (window.onTokenReceived) window.onTokenReceived(result);
     });
 
+    connection.on("ReceiveKeychangeResult", (result) => {
+        console.log("[VSM] Keychange result:", result);
+        if (window.onKeychangeReceived) window.onKeychangeReceived(result);
+    });
+
+    connection.on("ReceiveFullPOSComplete", (result) => {
+        console.log("[VSM] Full POS complete:", result);
+        if (window.onFullPOSComplete) window.onFullPOSComplete(result);
+    });
+
     try {
         await connection.start();
         console.log("[VSM] SignalR connected");
@@ -150,7 +160,7 @@ async function disconnectVSM() {
 }
 
 // Run full test suite via SignalR
-async function runFullTestSuite(utilityType, includeCurrency, includeKeychange, includeExtended) {
+async function runFullTestSuite(utilityType, includeCurrency, includeKeychange, includeExtended, ea) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
@@ -158,28 +168,28 @@ async function runFullTestSuite(utilityType, includeCurrency, includeKeychange, 
 
     try {
         await window.vsmConnection.hub.invoke("RunFullSuite",
-            utilityType, includeCurrency, includeKeychange, includeExtended);
+            utilityType, includeCurrency, includeKeychange, includeExtended, ea || 7);
     } catch (err) {
         console.error("[VSM] RunFullSuite error:", err);
     }
 }
 
 // Run single test via SignalR
-async function runSingleTest(testId, utilityType) {
+async function runSingleTest(testId, utilityType, ea) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
     }
 
     try {
-        await window.vsmConnection.hub.invoke("RunTest", testId, utilityType);
+        await window.vsmConnection.hub.invoke("RunTest", testId, utilityType, ea || 7);
     } catch (err) {
         console.error("[VSM] RunTest error:", err);
     }
 }
 
 // Generate single token via SignalR
-async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate) {
+async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate, ea, sgc, krn) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
@@ -187,9 +197,70 @@ async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDa
 
     try {
         await window.vsmConnection.hub.invoke("GenerateToken",
-            pan, reg, ti, creditType, amount, issueDate, baseDate);
+            pan, reg, ti, creditType, amount, issueDate, baseDate, ea || 7,
+            sgc || "201457", krn || "1");
     } catch (err) {
         console.error("[VSM] GenerateToken error:", err);
+    }
+}
+
+// Generate management token via SignalR
+async function generateManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, ea, sgc, krn) {
+    if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
+        alert("VSM not connected");
+        return;
+    }
+
+    try {
+        await window.vsmConnection.hub.invoke("GenerateManagementToken",
+            pan, reg, ti, mgmtType, value, issueDate, baseDate, ea || 7,
+            sgc || "201457", krn || "1");
+    } catch (err) {
+        console.error("[VSM] GenerateManagementToken error:", err);
+    }
+}
+
+// Generate keychange tokens via SignalR
+async function generateKeychangeTokens(pan, oldReg, newReg, oldTi, newTi, ea) {
+    if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
+        alert("VSM not connected");
+        return;
+    }
+
+    try {
+        await window.vsmConnection.hub.invoke("GenerateKeychangeTokens",
+            pan, oldReg, newReg, oldTi, newTi, ea || 7);
+    } catch (err) {
+        console.error("[VSM] GenerateKeychangeTokens error:", err);
+    }
+}
+
+// Run all 160 POS tests via SignalR
+async function runFullPOSTests(utilityType, includeCurrency, includeKeychange, includeExtended) {
+    if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
+        alert("VSM not connected");
+        return;
+    }
+
+    try {
+        await window.vsmConnection.hub.invoke("RunFullPOS",
+            utilityType, includeCurrency, includeKeychange, includeExtended);
+    } catch (err) {
+        console.error("[VSM] RunFullPOS error:", err);
+    }
+}
+
+// Log token test result to SQLite via SignalR
+async function logTokenTest(testVectorId, ea, category, pan, reg, ti, creditType, amount,
+    mgmtType, mgmtValue, issueDate, baseDate, expectedToken, generatedToken, passed) {
+    if (!window.vsmConnection.hub) return;
+
+    try {
+        await window.vsmConnection.hub.invoke("LogTokenTest",
+            testVectorId, ea, category, pan, reg, ti, creditType, amount,
+            mgmtType, mgmtValue, issueDate, baseDate, expectedToken, generatedToken, passed);
+    } catch (err) {
+        console.error("[VSM] LogTokenTest error:", err);
     }
 }
 

@@ -2,6 +2,17 @@
 @inject STSCompliancePOS.Services.VSMConfiguration Config
 @{ ViewData["Title"] = "VSM Connection"; }
 
+<!-- Toast Notification -->
+<div id="toast-notification" style="display: none; position: fixed; top: 24px; right: 24px; z-index: 9999; min-width: 320px; padding: 16px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 1px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: opacity 0.3s, transform 0.3s; transform: translateY(-10px); opacity: 0;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="toast-icon" style="font-size: 24px;"></span>
+        <div>
+            <div id="toast-title" style="font-size: 16px;"></div>
+            <div id="toast-detail" style="font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.8;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="page-header">
     <h2>VSM Connection</h2>
     <div class="subtitle">@Config.DeviceModel (@Config.FirmwareVersion) · @Config.Protocol</div>
@@ -180,6 +191,14 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label>Encryption Algorithm (EA)</label>
+                <select class="form-control" id="test-ea">
+                    <option value="7">EA07 (STS 531-1-07)</option>
+                    <option value="11">EA11 (STS 531-1-11)</option>
+                </select>
+            </div>
+
             <button class="btn btn-primary" style="width: 100%;" onclick="quickTokenTest()">
                 ⚡ Generate Token
             </button>
@@ -268,6 +287,14 @@
             </select>
         </div>
         <div class="form-group">
+            <label>Encryption Algorithm</label>
+            <select class="form-control" id="suite-ea">
+                <option value="7">EA07 (STS 531-1-07)</option>
+                <option value="11">EA11 (STS 531-1-11)</option>
+                <option value="both">Both EA07 + EA11 (160 tests)</option>
+            </select>
+        </div>
+        <div class="form-group">
             <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
                 <input type="checkbox" id="suite-currency" /> Include Currency
             </label>
@@ -277,15 +304,24 @@
                 <input type="checkbox" id="suite-keychange" /> Include Keychange
             </label>
         </div>
+    </div>
+    <div class="grid-2" style="margin-bottom: 14px;">
         <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 6px; margin-top: 24px;">
+            <label style="display: flex; align-items: center; gap: 6px;">
                 <input type="checkbox" id="suite-extended" /> Extended (STS202-5)
             </label>
+        </div>
+        <div class="info-row">
+            <span class="label">POS Report</span>
+            <span class="value mono" style="color: var(--accent);">Total: 160 tests (80×EA07 + 80×EA11)</span>
         </div>
     </div>
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
         <button class="btn btn-primary" onclick="runFullSuite()">
-            🧪 Run Full Compliance Suite
+            🧪 Run Compliance Suite
+        </button>
+        <button class="btn btn-primary" style="background: var(--warn);" id="run-pos-btn" onclick="runFullPOS()">
+            📋 Run All 160 POS Tests
         </button>
         <button class="btn btn-secondary" onclick="exportResults('csv')">
             📄 Export CSV
@@ -297,7 +333,32 @@
             🖨️ Print Report
         </button>
     </div>
+
+    <!-- POS Test Progress Overlay -->
+    <div id="pos-progress-overlay" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-surface); border: 1px solid var(--card-border); border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <div id="pos-spinner" style="width: 24px; height: 24px; border: 3px solid var(--card-border); border-top: 3px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <span id="pos-progress-title" style="font-weight: bold; color: var(--accent); font-size: 14px;">Running All 160 POS Tests...</span>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">
+                <span id="pos-progress-label">Initializing...</span>
+                <span id="pos-progress-count"></span>
+            </div>
+            <div style="height: 6px; background: var(--card-border); border-radius: 3px; overflow: hidden;">
+                <div id="pos-progress-bar" style="height: 100%; background: var(--accent); border-radius: 3px; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+        <div id="pos-live-log" style="height: 200px; overflow-y: auto; background: #000; border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);"></div>
+    </div>
 </div>
+
+<style>
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
 
 @section Scripts {
 <script>
@@ -310,7 +371,7 @@
             await disconnectVSM();
         } else {
             if (!port) {
-                alert('Please select a COM port');
+                showWarnToast('No Port Selected', 'Please select a COM port.');
                 return;
             }
             await connectVSM(port);
@@ -320,7 +381,7 @@
     // Quick token test
     async function quickTokenTest() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected');
+            showWarnToast('VSM Not Connected', 'Please connect to VSM first.');
             return;
         }
 
@@ -331,8 +392,9 @@
         const amount = parseFloat(document.getElementById('test-amount').value);
         const dateStr = document.getElementById('test-date').value;
         const bd = parseInt(document.getElementById('test-bd').value);
+        const ea = parseInt(document.getElementById('test-ea').value);
 
-        await generateToken(pan, reg, ti, ct, amount, dateStr, bd);
+        await generateToken(pan, reg, ti, ct, amount, dateStr, bd, ea);
     }
 
     // Handle token received
@@ -348,15 +410,35 @@
             resultDiv.style.display = 'block';
 
             // Compare with expected if provided
-            const expected = expectedInput.value.replace(/\s/g, '');
+            const expectedRaw = expectedInput.value.trim();
+            const expected = expectedRaw.replace(/\s/g, '');
             if (expected) {
                 const actual = result.token.replace(/\s/g, '');
-                if (actual === expected) {
-                    compareDiv.innerHTML = '<div class="verify-box verify-pass"><span class="verify-text">✓ MATCH — Token matches expected value!</span></div>';
+                const passed = actual === expected;
+
+                if (passed) {
+                    compareDiv.innerHTML = '<div class="verify-box verify-pass"><span class="verify-text">\u2713 MATCH \u2014 Token matches expected value!</span></div>';
                 } else {
-                    compareDiv.innerHTML = '<div class="verify-box verify-fail"><span class="verify-text">✗ MISMATCH — Token does not match expected value</span></div>';
+                    compareDiv.innerHTML = '<div class="verify-box verify-fail"><span class="verify-text">\u2717 MISMATCH \u2014 Token does not match expected value</span></div>';
                 }
                 compareDiv.style.display = 'block';
+
+                // Log to SQLite
+                const logEa = parseInt(document.getElementById('test-ea').value);
+                const logPan = document.getElementById('test-pan').value;
+                const logReg = document.getElementById('test-reg').value;
+                const logTi = document.getElementById('test-ti').value;
+                const logCt = document.getElementById('test-ct').value;
+                const logAmount = parseFloat(document.getElementById('test-amount').value);
+                const logDate = document.getElementById('test-date').value;
+                const logBd = parseInt(document.getElementById('test-bd').value);
+
+                logTokenTest('QuickTest', logEa, 'credit', logPan, logReg, logTi,
+                    logCt, logAmount, null, null, logDate, logBd,
+                    expectedRaw, result.token, passed);
+
+                // Toast
+                showConnToast(passed, passed ? 'TOKEN MATCH' : 'TOKEN MISMATCH', result.token);
             } else {
                 compareDiv.style.display = 'none';
             }
@@ -365,13 +447,14 @@
             valueDiv.style.color = 'var(--error)';
             resultDiv.style.display = 'block';
             compareDiv.style.display = 'none';
+            showConnToast(false, 'Token Error', result.error);
         }
     };
 
     // Run full suite
     async function runFullSuite() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected. Please connect first.');
+            showWarnToast('VSM Not Connected', 'Please connect first.');
             return;
         }
 
@@ -379,17 +462,222 @@
         const currency = document.getElementById('suite-currency').checked;
         const keychange = document.getElementById('suite-keychange').checked;
         const extended = document.getElementById('suite-extended').checked;
+        const eaSelect = document.getElementById('suite-ea').value;
 
-        await runFullTestSuite(utility, currency, keychange, extended);
+        if (eaSelect === 'both') {
+            // Run both suites sequentially
+            await runFullPOS();
+            return;
+        }
+
+        const ea = parseInt(eaSelect);
+        await runFullTestSuite(utility, currency, keychange, extended, ea);
+    }
+
+    // Run all 160 POS tests (EA07 + EA11) via SignalR with live progress
+    let posTestRunning = false;
+    let posStepCount = 0;
+
+    async function runFullPOS() {
+        if (!window.vsmConnection.isConnected) {
+            showWarnToast('VSM Not Connected', 'Please connect first.');
+            return;
+        }
+        if (posTestRunning) {
+            showWarnToast('Tests In Progress', 'POS tests already running. Please wait.');
+            return;
+        }
+
+        const utility = document.getElementById('suite-utility').value;
+        const currency = document.getElementById('suite-currency').checked;
+        const keychange = document.getElementById('suite-keychange').checked;
+        const extended = document.getElementById('suite-extended').checked;
+        const log = document.getElementById('progress-log');
+
+        // Show overlay & disable button
+        posTestRunning = true;
+        posStepCount = 0;
+        const overlay = document.getElementById('pos-progress-overlay');
+        const liveLog = document.getElementById('pos-live-log');
+        const progressBar = document.getElementById('pos-progress-bar');
+        const progressLabel = document.getElementById('pos-progress-label');
+        const progressCount = document.getElementById('pos-progress-count');
+        const progressTitle = document.getElementById('pos-progress-title');
+        const spinner = document.getElementById('pos-spinner');
+        const btn = document.getElementById('run-pos-btn');
+
+        overlay.style.display = 'block';
+        liveLog.innerHTML = '';
+        progressBar.style.width = '0%';
+        progressBar.style.background = 'var(--accent)';
+        progressLabel.textContent = 'Initializing...';
+        progressCount.textContent = '0 / 160';
+        progressTitle.textContent = 'Running All 160 POS Tests...';
+        progressTitle.style.color = 'var(--accent)';
+        spinner.style.animation = 'spin 1s linear infinite';
+        spinner.style.borderTopColor = 'var(--accent)';
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+
+        log.innerHTML += '<div class="log-entry" style="color: var(--accent);">═══ Running ALL 160 POS Tests (EA07 + EA11) ═══</div>';
+        log.scrollTop = log.scrollHeight;
+
+        // Hook into ReceiveProgress to update live log
+        const originalOnProgress = window._posProgressHandler;
+        window._posProgressHandler = function(message) {
+            // Update live log
+            liveLog.innerHTML += `<div style="margin-bottom: 2px;">${formatTime()} ${message}</div>`;
+            liveLog.scrollTop = liveLog.scrollHeight;
+
+            // Count completed steps (look for PASS/FAIL patterns)
+            if (message.includes('PASS') || message.includes('FAIL') || message.includes('passed') || message.includes('Step')) {
+                posStepCount++;
+                const pct = Math.min((posStepCount / 160) * 100, 100);
+                progressBar.style.width = pct + '%';
+                progressCount.textContent = `${Math.min(posStepCount, 160)} / 160`;
+            }
+
+            // Update label based on phase
+            if (message.includes('[EA07]')) {
+                progressLabel.textContent = 'Running EA07 tests...';
+            } else if (message.includes('[EA11]')) {
+                progressLabel.textContent = 'Running EA11 tests...';
+            } else if (message.includes('EA07 Done')) {
+                progressLabel.textContent = 'EA07 complete, starting EA11...';
+            }
+        };
+
+        // Intercept SignalR ReceiveProgress
+        const hub = window.vsmConnection.hub;
+        hub.off("ReceiveProgress");
+        hub.on("ReceiveProgress", (message) => {
+            console.log("[VSM]", message);
+            // Update activity log
+            const mainLog = document.getElementById("progress-log");
+            if (mainLog) {
+                mainLog.innerHTML += `<div class="log-entry">${formatTime()} ${message}</div>`;
+                mainLog.scrollTop = mainLog.scrollHeight;
+            }
+            // Update overlay
+            if (window._posProgressHandler) window._posProgressHandler(message);
+        });
+
+        try {
+            await runFullPOSTests(utility, currency, keychange, extended);
+        } catch (e) {
+            log.innerHTML += `<div class="log-entry" style="color: var(--error)">Error: ${e.message}</div>`;
+            finishPOSOverlay(false, e.message);
+        }
+    }
+
+    // Handle full POS completion
+    window.onFullPOSComplete = function(result) {
+        const allPassed = result.allPassed;
+        const log = document.getElementById('progress-log');
+        const color = allPassed ? 'var(--success)' : 'var(--error)';
+
+        log.innerHTML += `<div class="log-entry" style="color: ${color}">═══ EA07: ${result.ea07Result.totalPassed}/${result.ea07Result.totalSteps} passed ═══</div>`;
+        log.innerHTML += `<div class="log-entry" style="color: ${color}">═══ EA11: ${result.ea11Result.totalPassed}/${result.ea11Result.totalSteps} passed ═══</div>`;
+        log.innerHTML += `<div class="log-entry" style="color: ${color}; font-weight: bold;">═══ TOTAL: ${result.totalPassed}/${result.totalTests} passed ═══</div>`;
+        log.scrollTop = log.scrollHeight;
+
+        finishPOSOverlay(allPassed,
+            `${result.totalPassed}/${result.totalTests} passed (EA07: ${result.ea07Result.totalPassed}/${result.ea07Result.totalSteps}, EA11: ${result.ea11Result.totalPassed}/${result.ea11Result.totalSteps})`);
+
+        if (confirm(`Test complete: ${result.totalPassed}/${result.totalTests} passed.\n\nExport results?`)) {
+            exportResults('csv');
+        }
+    };
+
+    function finishPOSOverlay(success, message) {
+        const progressBar = document.getElementById('pos-progress-bar');
+        const progressLabel = document.getElementById('pos-progress-label');
+        const progressTitle = document.getElementById('pos-progress-title');
+        const progressCount = document.getElementById('pos-progress-count');
+        const spinner = document.getElementById('pos-spinner');
+        const btn = document.getElementById('run-pos-btn');
+
+        // Stop spinner — remove animation and hide
+        spinner.style.animation = 'none';
+        spinner.style.borderTopColor = success ? 'var(--success)' : 'var(--error)';
+
+        progressBar.style.width = '100%';
+        progressBar.style.background = success ? 'var(--success)' : 'var(--error)';
+        progressLabel.textContent = message;
+        progressCount.textContent = 'Done';
+        progressTitle.textContent = success ? 'All Tests Passed!' : 'Tests Complete (with failures)';
+        progressTitle.style.color = success ? 'var(--success)' : 'var(--error)';
+
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        posTestRunning = false;
+
+        // Restore normal SignalR handler
+        const hub = window.vsmConnection.hub;
+        hub.off("ReceiveProgress");
+        hub.on("ReceiveProgress", (msg) => {
+            console.log("[VSM]", msg);
+            const log = document.getElementById("progress-log");
+            if (log) {
+                log.innerHTML += `<div class="log-entry">${formatTime()} ${msg}</div>`;
+                log.scrollTop = log.scrollHeight;
+            }
+        });
+        window._posProgressHandler = null;
+    }
+
+    function showConnToast(success, title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+        toast.style.border = success ? '2px solid rgba(16,185,129,0.5)' : '2px solid rgba(239,68,68,0.5)';
+        toast.style.color = success ? 'var(--success)' : 'var(--error)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
+    function showWarnToast(title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = 'rgba(245,158,11,0.12)';
+        toast.style.border = '2px solid rgba(245,158,11,0.5)';
+        toast.style.color = 'var(--warn)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = '\u26A0\uFE0F';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
     }
 
     // Handle test complete
     window.onTestComplete = function(result) {
         const log = document.getElementById('progress-log');
-        log.innerHTML += `<div class="log-entry" style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}">
+        const allPassed = result.allPassed;
+        log.innerHTML += `<div class="log-entry" style="color: ${allPassed ? 'var(--success)' : 'var(--error)'}">
             ═══ Suite Complete: ${result.totalPassed}/${result.totalSteps} passed ═══
         </div>`;
         log.scrollTop = log.scrollHeight;
+
+        showConnToast(allPassed,
+            allPassed ? 'ALL TESTS PASSED' : 'TESTS FAILED',
+            `${result.totalPassed}/${result.totalSteps} passed`);
 
         if (confirm(`Test complete: ${result.totalPassed}/${result.totalSteps} passed.\n\nExport results?`)) {
             exportResults('csv');

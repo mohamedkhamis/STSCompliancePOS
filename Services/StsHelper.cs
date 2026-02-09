@@ -3,8 +3,6 @@
 //  TID calculation (configurable base date), STS amount encoding, Luhn check
 // =============================================================================
 
-using System;
-
 namespace STSCompliancePOS.Services
 {
     public static class StsHelper
@@ -51,18 +49,62 @@ namespace STSCompliancePOS.Services
         }
 
         // =====================================================================
-        //  STS Amount Encoding (0.1 unit resolution)
+        //  STS Amount Encoding (IEC 62055-41, 0.1 unit resolution)
         //  Input: value in 0.1 units (e.g., 25.6 kWh = 256)
+        //  Encodes to 16-bit field: 2-bit exponent + 14-bit mantissa
+        //  Uses nearest representable value (round to nearest, prefer up)
         // =====================================================================
         public static ushort EncodeAmount(uint units)
         {
-            ushort m, e;
-            if (units <= 16383)           { m = (ushort)units; e = 0; }
-            else if (units <= 180223)     { m = (ushort)((units - 0x4000) / 10); e = 1; }
-            else if (units <= 1818623)    { m = (ushort)((units - 0x4000 * 11) / 100); e = 2; }
-            else if (units <= 18201624)   { m = (ushort)((units - 0x4000 * 111) / 1000); e = 3; }
-            else                          { m = 0x3FFF; e = 3; }
-            return (ushort)((e << 14) | (m & 0x3FFF));
+            // Offsets and step sizes per exponent range
+            // e=0: offset=0, step=1       range [0, 16383]
+            // e=1: offset=16384, step=10   range [16384, 180214]
+            // e=2: offset=180224, step=100 range [180224, 1818524]
+            // e=3: offset=1818624, step=1000 range [1818624, 18201624]
+            uint[] offsets = { 0, 16384, 180224, 1818624 };
+            uint[] steps   = { 1, 10, 100, 1000 };
+
+            ushort bestE = 0, bestM = 0;
+            uint bestError = uint.MaxValue;
+
+            for (ushort e = 0; e <= 3; e++)
+            {
+                if (units < offsets[e] && e > 0)
+                {
+                    // Amount is below this range; check M=0 (range minimum)
+                    uint decoded0 = offsets[e];
+                    uint err0 = decoded0 - units;
+                    if (err0 < bestError)
+                    {
+                        bestError = err0;
+                        bestE = e;
+                        bestM = 0;
+                    }
+                    continue;
+                }
+
+                if (units < offsets[e]) continue;
+
+                // Compute mantissa with rounding to nearest
+                uint diff = units - offsets[e];
+                uint mFloor = diff / steps[e];
+                if (mFloor > 16383) mFloor = 16383;
+
+                // Check floor and ceiling mantissa values
+                for (uint mCandidate = mFloor; mCandidate <= mFloor + 1 && mCandidate <= 16383; mCandidate++)
+                {
+                    uint decoded = offsets[e] + mCandidate * steps[e];
+                    uint err = units >= decoded ? units - decoded : decoded - units;
+                    if (err < bestError || (err == bestError && e < bestE))
+                    {
+                        bestError = err;
+                        bestE = e;
+                        bestM = (ushort)mCandidate;
+                    }
+                }
+            }
+
+            return (ushort)((bestE << 14) | (bestM & 0x3FFF));
         }
 
         public static uint DecodeAmount(ushort encoded)
@@ -108,14 +150,14 @@ namespace STSCompliancePOS.Services
         // =====================================================================
         //  Token formatting: "12345678901234567890" → "1234 5678 9012 3456 7890"
         // =====================================================================
-        public static string FormatToken(string token)
+        public static string FormatToken(string? token)
         {
             if (token == null || token.Length != 20) return token ?? "(null)";
             return $"{token.Substring(0, 4)} {token.Substring(4, 4)} {token.Substring(8, 4)} {token.Substring(12, 4)} {token.Substring(16, 4)}";
         }
 
         // Normalize expected token: remove spaces
-        public static string NormalizeToken(string token)
+        public static string NormalizeToken(string? token)
         {
             return token?.Replace(" ", "") ?? "";
         }

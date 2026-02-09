@@ -160,7 +160,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
         };
 
         result.Steps.Add(await RunCreditStep($"0.1 {utilityType} TransferCredit, BD=2035, KRN=6",
-            PAN_11, REG_BD2035, "01", ct, steps9_12[idx, 0], 1, 2035, steps9_12[idx, 1]));
+            PAN_11, REG_BD2035, "01", ct, steps9_12[idx, 0], 1, 2035, steps9_12[idx, 1],
+            sgc: "203557", krn: '6'));
 
         result.EndTime = DateTime.UtcNow;
         return result;
@@ -202,12 +203,19 @@ public class ComplianceTestService(VSMConnectionService vsm)
     // =========================================================================
     public async Task<TestRunResult> RunCTSA03(Action<string>? progress = null)
     {
-        var result = new TestRunResult { TestId = "CTSA03", TestName = "SetMaximumPowerLimit", StartTime = DateTime.UtcNow };
-        progress?.Invoke("Running CTSA03 — SetMaximumPowerLimit...");
+        return await RunCTSA03(PAN_11, REG_MAIN, "01", "0", StsHelper.EncodeAmount(1000), "2024-03-28 09:01", 2014,
+            "6896 1683 0643 2623 4122", progress);
+    }
 
-        result.Steps.Add(await RunManagementStep("SetMPL 1kW",
-            PAN_11, REG_MAIN, "01", "0", "2024-03-28 09:01", 10, 2014,
-            "6896 1683 0643 2623 4122"));
+    public async Task<TestRunResult> RunCTSA03(string pan, string reg, string ti,
+        string mgmtType, ushort value, string issueDate, int baseDate, string expected,
+        Action<string>? progress = null)
+    {
+        var result = new TestRunResult { TestId = "CTSA03", TestName = "SetMaximumPowerLimit", StartTime = DateTime.UtcNow };
+        progress?.Invoke($"Running CTSA03 — SetMaximumPowerLimit (PAN={pan}, REG={reg}, Value={value})...");
+
+        result.Steps.Add(await RunManagementStep($"SetMPL value={value}",
+            pan, reg, ti, mgmtType, issueDate, value, baseDate, expected));
 
         result.EndTime = DateTime.UtcNow;
         return result;
@@ -285,7 +293,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
         progress?.Invoke("Running CTSA07 — SetMaxPhasePowerUnbalance...");
 
         result.Steps.Add(await RunManagementStep("SetMPUL 10W",
-            PAN_11, REG_MAIN, "01", "6", "2025-03-28 10:20", 100, 2014,
+            PAN_11, REG_MAIN, "01", "6", "2025-03-28 10:20", StsHelper.EncodeAmount(10), 2014,
             "3171 2008 4993 5179 7283"));
 
         result.EndTime = DateTime.UtcNow;
@@ -369,7 +377,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
         foreach (var t in tests)
         {
             result.Steps.Add(await RunManagementStep($"MPL={t.mpl}W",
-                PAN_11, REG_MAIN, "01", "0", t.date, (ushort)(t.mpl / 10), 2014, t.expected));
+                PAN_11, REG_MAIN, "01", "0", t.date, StsHelper.EncodeAmount(t.mpl), 2014, t.expected));
         }
 
         result.EndTime = DateTime.UtcNow;
@@ -393,7 +401,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
         foreach (var t in tests)
         {
             result.Steps.Add(await RunManagementStep($"MPUL={t.mpul}W",
-                PAN_11, REG_MAIN, "01", "6", t.date, (ushort)(t.mpul / 10), 2014, t.expected));
+                PAN_11, REG_MAIN, "01", "6", t.date, StsHelper.EncodeAmount(t.mpul), 2014, t.expected));
         }
 
         result.EndTime = DateTime.UtcNow;
@@ -544,7 +552,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     //  Helper Methods — Execute actual VSM commands
     // =========================================================================
     private async Task<TestStepResult> RunCreditStep(string desc, string pan, string reg,
-        string ti, string creditType, string dateStr, uint amount, int baseDate, string expected)
+        string ti, string creditType, string dateStr, uint amount, int baseDate, string expected,
+        string sgc = "201457", char krn = '1')
     {
         var result = new TestStepResult
         {
@@ -567,20 +576,31 @@ public class ComplianceTestService(VSMConnectionService vsm)
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
             ushort stsAmt = StsHelper.EncodeAmount(amount);
 
-            string? token = vsm.Driver.GenerateCreditToken(pan, reg, "", ti, '1', 255,
+            
+            // Diagnostic: log parameters for debugging
+            Console.WriteLine($"[CREDIT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={creditType} Amount={amount} (STS=0x{stsAmt:X4}) TID={tid} (0x{tid:X})");
+
+            string? token = vsm.Driver.GenerateCreditToken(pan, reg, sgc, ti, krn, 255,
                 creditType, tid, stsAmt);
+
+            // Diagnostic: log TX/RX
+            Console.WriteLine($"[CREDIT] TX: {vsm.Driver.LastTx}");
+            Console.WriteLine($"[CREDIT] RX: {vsm.Driver.LastRx}");
 
             // ReSharper disable  ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (token != null)
             {
                 result.Actual = StsHelper.FormatToken(token);
                 result.Passed = token == StsHelper.NormalizeToken(expected);
+                if (!result.Passed)
+                    Console.WriteLine($"[CREDIT] MISMATCH: expected={StsHelper.NormalizeToken(expected)} actual={token}");
             }
             else
             {
                 result.Actual = "(null)";
                 result.Passed = false;
                 result.ErrorInfo = vsm.Driver.LastError;
+                Console.WriteLine($"[CREDIT] ERROR: {vsm.Driver.LastError}");
             }
         }
         catch (Exception ex)
@@ -595,7 +615,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     }
 
     private async Task<TestStepResult> RunManagementStep(string desc, string pan, string reg,
-        string ti, string mgmtType, string dateStr, ushort value, int baseDate, string expected)
+        string ti, string mgmtType, string dateStr, ushort value, int baseDate, string expected,
+        string sgc = "201457", char krn = '1')
     {
         var result = new TestStepResult
         {
@@ -616,20 +637,30 @@ public class ComplianceTestService(VSMConnectionService vsm)
             var (y, m, d, h, mn) = ParseDate(dateStr);
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
 
-            string? token = vsm.Driver.GenerateManagementToken(pan, reg, "", ti, '1', 255,
+            // Diagnostic: log parameters for debugging
+            Console.WriteLine($"[MGMT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={mgmtType} Value={value} (0x{value:X4}) TID={tid} (0x{tid:X})");
+
+            string? token = vsm.Driver.GenerateManagementToken(pan, reg, sgc, ti, krn, 255,
                 mgmtType, tid, value);
+
+            // Diagnostic: log TX/RX
+            Console.WriteLine($"[MGMT] TX: {vsm.Driver.LastTx}");
+            Console.WriteLine($"[MGMT] RX: {vsm.Driver.LastRx}");
 
             // ReSharper disable  ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (token != null)
             {
                 result.Actual = StsHelper.FormatToken(token);
                 result.Passed = token == StsHelper.NormalizeToken(expected);
+                if (!result.Passed)
+                    Console.WriteLine($"[MGMT] MISMATCH: expected={StsHelper.NormalizeToken(expected)} actual={token}");
             }
             else
             {
                 result.Actual = "(null)";
                 result.Passed = false;
                 result.ErrorInfo = vsm.Driver.LastError;
+                Console.WriteLine($"[MGMT] ERROR: {vsm.Driver.LastError}");
             }
         }
         catch (Exception ex)
@@ -637,6 +668,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
             result.Actual = "(error)";
             result.Passed = false;
             result.ErrorInfo = ex.Message;
+            Console.WriteLine($"[MGMT] EXCEPTION: {ex.Message}");
         }
 
         await Task.Delay(50);
@@ -703,7 +735,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     // =========================================================================
     public Task<(string? token, string? error)> GenerateSingleToken(
         string pan, string reg, string ti, string creditType,
-        decimal amount, DateTime issueDate, int baseDate)
+        decimal amount, DateTime issueDate, int baseDate,
+        string sgc = "201457", char krn = '1')
     {
         if (vsm.Driver == null)
             return Task.FromResult<(string? token, string? error)>((null, "VSM not connected"));
@@ -715,8 +748,38 @@ public class ComplianceTestService(VSMConnectionService vsm)
             uint amountUnits = (uint)(amount * 10);
             ushort stsAmt = StsHelper.EncodeAmount(amountUnits);
 
-            string? token = vsm.Driver.GenerateCreditToken(pan, reg, "", ti, '1', 255,
+            string? token = vsm.Driver.GenerateCreditToken(pan, reg, sgc, ti, krn, 255,
                 creditType, tid, stsAmt);
+
+            if (token != null)
+                return Task.FromResult<(string? token, string? error)>((StsHelper.FormatToken(token), null));
+            else
+                return Task.FromResult<(string? token, string? error)>((null, vsm.Driver.LastError));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult<(string? token, string? error)>((null, ex.Message));
+        }
+    }
+
+    // =========================================================================
+    //  Single Management Token Generation (for manual vending)
+    // =========================================================================
+    public Task<(string? token, string? error)> GenerateSingleManagementToken(
+        string pan, string reg, string ti, string mgmtType,
+        ushort value, DateTime issueDate, int baseDate,
+        string sgc = "201457", char krn = '1')
+    {
+        if (vsm.Driver == null)
+            return Task.FromResult<(string? token, string? error)>((null, "VSM not connected"));
+
+        try
+        {
+            uint tid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
+                issueDate.Hour, issueDate.Minute, baseDate);
+
+            string? token = vsm.Driver.GenerateManagementToken(pan, reg, sgc, ti, krn, 255,
+                mgmtType, tid, value);
 
             if (token != null)
                 return Task.FromResult<(string? token, string? error)>((StsHelper.FormatToken(token), null));

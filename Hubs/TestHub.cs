@@ -1,29 +1,32 @@
 // =============================================================================
 //  TestHub.cs — SignalR Hub for real-time compliance test updates
+//  Supports both EA07 (STS 531-1-07) and EA11 (STS 531-1-11)
 // =============================================================================
 
 using Microsoft.AspNetCore.SignalR;
+using STSCompliancePOS.Controllers;
 using STSCompliancePOS.Services;
 
 namespace STSCompliancePOS.Hubs;
 
-public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, TestResultsStore resultsStore)
+public class TestHub(
+    VSMConnectionService vsm,
+    ComplianceTestService testsEA07,
+    ComplianceTestServiceEA11 testsEA11,
+    TestResultsStore resultsStore,
+    TestLogService testLog)
     : Hub
 {
-    // Send progress update to all clients
-    // ReSharper disable  UnusedMember.Global
     public async Task SendProgress(string message)
     {
         await Clients.All.SendAsync("ReceiveProgress", message);
     }
 
-    // Send step result to all clients
     public async Task SendStepResult(TestStepResult result)
     {
         await Clients.All.SendAsync("ReceiveStepResult", result);
     }
 
-    // Get connection status
     public async Task GetConnectionStatus()
     {
         var status = new ConnectionStatus
@@ -36,11 +39,9 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
         await Clients.Caller.SendAsync("ReceiveConnectionStatus", status);
     }
 
-    // Connect to COM port
     public async Task Connect(string portName)
     {
         await Clients.Caller.SendAsync("ReceiveProgress", $"Connecting to {portName}...");
-
         bool success = vsm.Connect(portName);
 
         var status = new ConnectionStatus
@@ -52,18 +53,30 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
         };
 
         await Clients.All.SendAsync("ReceiveConnectionStatus", status);
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            success ? $"Connected to {portName}" : $"Connection failed: {vsm.LastError}");
 
-        if (success)
-            await Clients.Caller.SendAsync("ReceiveProgress", $"Connected to {portName}");
-        else
-            await Clients.Caller.SendAsync("ReceiveProgress", $"Connection failed: {vsm.LastError}");
+        // Diagnostic: query key register 01 attributes on connect
+        if (success && vsm.Driver != null)
+        {
+            try
+            {
+                string gaResp = vsm.Driver.GetKeyStatus("01");
+                Console.WriteLine($"[DIAG] SM?GA reg=01 TX: {vsm.Driver.LastTx}");
+                Console.WriteLine($"[DIAG] SM?GA reg=01 RX: {vsm.Driver.LastRx}");
+                Console.WriteLine($"[DIAG] SM?GA reg=01 payload: {gaResp}");
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[DIAG] Register 01: {gaResp}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DIAG] SM?GA error: {ex.Message}");
+            }
+        }
     }
 
-    // Disconnect
     public async Task Disconnect()
     {
         vsm.Disconnect();
-
         var status = new ConnectionStatus
         {
             IsConnected = false,
@@ -71,13 +84,13 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
             AvailablePorts = VSMConnectionService.GetAvailablePorts(),
             LastError = null
         };
-
         await Clients.All.SendAsync("ReceiveConnectionStatus", status);
         await Clients.Caller.SendAsync("ReceiveProgress", "Disconnected");
     }
 
-    // Run full test suite
-    public async Task RunFullSuite(string utilityType, bool includeCurrency, bool includeKeychange, bool includeExtended)
+    // Run full test suite — EA parameter selects EA07 or EA11
+    public async Task RunFullSuite(string utilityType, bool includeCurrency,
+        bool includeKeychange, bool includeExtended, int ea = 7)
     {
         if (!vsm.IsConnected)
         {
@@ -85,21 +98,31 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
             return;
         }
 
-        await Clients.Caller.SendAsync("ReceiveProgress", "Starting full compliance test suite...");
+        string eaLabel = ea == 11 ? "EA11" : "EA07";
+        await Clients.Caller.SendAsync("ReceiveProgress", $"Starting {eaLabel} compliance test suite...");
 
-        var result = await tests.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
-            // ReSharper disable once AsyncVoidLambda
-            async msg => await Clients.Caller.SendAsync("ReceiveProgress", msg));
+        FullTestSuiteResult result;
 
-        // Store results for export
+        if (ea == 11)
+        {
+            if (vsm.Driver != null) vsm.Driver.EA = 11;
+            result = await testsEA11.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
+                async msg => await Clients.Caller.SendAsync("ReceiveProgress", $"[EA11] {msg}"));
+        }
+        else
+        {
+            if (vsm.Driver != null) vsm.Driver.EA = 7;
+            result = await testsEA07.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
+                async msg => await Clients.Caller.SendAsync("ReceiveProgress", $"[EA07] {msg}"));
+        }
+
         resultsStore.StoreSuiteResult(result);
-
         await Clients.Caller.SendAsync("ReceiveTestComplete", result);
     }
 
-    // Run individual test
-    // ReSharper disable once UnusedMember.Global
-    public async Task RunTest(string testId, string utilityType)
+    // Run all 160 POS tests (EA07 + EA11) with real-time progress
+    public async Task RunFullPOS(string utilityType, bool includeCurrency,
+        bool includeKeychange, bool includeExtended)
     {
         if (!vsm.IsConnected)
         {
@@ -107,33 +130,107 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
             return;
         }
 
-        await Clients.Caller.SendAsync("ReceiveProgress", $"Running {testId}...");
+        await Clients.Caller.SendAsync("ReceiveProgress", "═══ Running ALL 160 POS Tests (EA07 + EA11) ═══");
 
-        TestRunResult? result = testId.ToUpper() switch
+        // Run EA07 suite (tests 0001-0080)
+        await Clients.Caller.SendAsync("ReceiveProgress", "Starting EA07 suite (80 tests)...");
+        if (vsm.Driver != null) vsm.Driver.EA = 7;
+        var ea07Result = await testsEA07.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
+            async msg => await Clients.Caller.SendAsync("ReceiveProgress", $"[EA07] {msg}"));
+
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            $"═══ EA07 Done: {ea07Result.TotalPassed}/{ea07Result.TotalSteps} passed ═══");
+
+        // Run EA11 suite (tests 0081-0160)
+        await Clients.Caller.SendAsync("ReceiveProgress", "Starting EA11 suite (80 tests)...");
+        if (vsm.Driver != null) vsm.Driver.EA = 11;
+        var ea11Result = await testsEA11.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
+            async msg => await Clients.Caller.SendAsync("ReceiveProgress", $"[EA11] {msg}"));
+
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            $"═══ EA11 Done: {ea11Result.TotalPassed}/{ea11Result.TotalSteps} passed ═══");
+
+        // Store results
+        resultsStore.StoreSuiteResult(ea07Result);
+
+        var posResult = new POSFullTestResult
         {
-            "CTSA01" => await tests.RunCTSA01(utilityType),
-            "CTSA02" => await tests.RunCTSA02(),
-            "CTSA03" => await tests.RunCTSA03(),
-            "CTSA04" => await tests.RunCTSA04(),
-            "CTSA05" => await tests.RunCTSA05(),
-            "CTSA06" => await tests.RunCTSA06(),
-            "CTSA07" => await tests.RunCTSA07(),
-            "CTSA09" => await tests.RunCTSA09(utilityType),
-            "CTSA10" => await tests.RunCTSA10(utilityType),
-            "CTSA12" => await tests.RunCTSA12(),
-            "CTSA13" => await tests.RunCTSA13(),
-            "CTSA14" => await tests.RunCTSA14(utilityType, true),
-            "CTSA15" => await tests.RunCTSA15(),
-            "CTSA16" => await tests.RunCTSA16(),
-            "CTSA17" => await tests.RunCTSA17(),
-            "CTSA20" => await tests.RunCTSA20(),
-            "CTSA24" => await tests.RunCTSA24(),
-            _ => null
+            EA07Result = ea07Result,
+            EA11Result = ea11Result,
+            StartTime = ea07Result.StartTime,
+            EndTime = DateTime.UtcNow
         };
+
+        await Clients.Caller.SendAsync("ReceiveFullPOSComplete", posResult);
+    }
+
+    // Run individual test
+    public async Task RunTest(string testId, string utilityType, int ea = 7)
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        string eaLabel = ea == 11 ? "EA11" : "EA07";
+        await Clients.Caller.SendAsync("ReceiveProgress", $"Running {testId} ({eaLabel})...");
+
+        TestRunResult? result;
+
+        if (ea == 11)
+        {
+            if (vsm.Driver != null) vsm.Driver.EA = 11;
+            result = testId.ToUpper() switch
+            {
+                "CTSA01" => await testsEA11.RunCTSA01(utilityType),
+                "CTSA02" => await testsEA11.RunCTSA02(),
+                "CTSA03" => await testsEA11.RunCTSA03(),
+                "CTSA04" => await testsEA11.RunCTSA04(),
+                "CTSA05" => await testsEA11.RunCTSA05(),
+                "CTSA06" => await testsEA11.RunCTSA06(),
+                "CTSA07" => await testsEA11.RunCTSA07(),
+                "CTSA10" => await testsEA11.RunCTSA10(utilityType),
+                "CTSA11" => await testsEA11.RunCTSA11(),
+                "CTSA12" => await testsEA11.RunCTSA12(),
+                "CTSA13" => await testsEA11.RunCTSA13(),
+                "CTSA14" => await testsEA11.RunCTSA14(utilityType, true),
+                "CTSA15" => await testsEA11.RunCTSA15(),
+                "CTSA16" => await testsEA11.RunCTSA16(),
+                "CTSA17" => await testsEA11.RunCTSA17(),
+                "CTSA20" => await testsEA11.RunCTSA20(),
+                "CTSA24" => await testsEA11.RunCTSA24(),
+                _ => null
+            };
+        }
+        else
+        {
+            if (vsm.Driver != null) vsm.Driver.EA = 7;
+            result = testId.ToUpper() switch
+            {
+                "CTSA01" => await testsEA07.RunCTSA01(utilityType),
+                "CTSA02" => await testsEA07.RunCTSA02(),
+                "CTSA03" => await testsEA07.RunCTSA03(),
+                "CTSA04" => await testsEA07.RunCTSA04(),
+                "CTSA05" => await testsEA07.RunCTSA05(),
+                "CTSA06" => await testsEA07.RunCTSA06(),
+                "CTSA07" => await testsEA07.RunCTSA07(),
+                "CTSA09" => await testsEA07.RunCTSA09(utilityType),
+                "CTSA10" => await testsEA07.RunCTSA10(utilityType),
+                "CTSA12" => await testsEA07.RunCTSA12(),
+                "CTSA13" => await testsEA07.RunCTSA13(),
+                "CTSA14" => await testsEA07.RunCTSA14(utilityType, true),
+                "CTSA15" => await testsEA07.RunCTSA15(),
+                "CTSA16" => await testsEA07.RunCTSA16(),
+                "CTSA17" => await testsEA07.RunCTSA17(),
+                "CTSA20" => await testsEA07.RunCTSA20(),
+                "CTSA24" => await testsEA07.RunCTSA24(),
+                _ => null
+            };
+        }
 
         if (result != null)
         {
-            // Store results for export
             resultsStore.StoreTestResult(result);
             await Clients.Caller.SendAsync("ReceiveSingleTestComplete", result);
         }
@@ -143,9 +240,9 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
         }
     }
 
-    // Generate single token
-    public async Task GenerateToken(string pan, string reg, string ti, string creditType,
-        decimal amount, string issueDateStr, int baseDate)
+    // Run CTSA03 with custom parameters from the view
+    public async Task RunCTSA03WithParams(string pan, string reg, string ti, string mgmtType,
+        ushort value, string issueDate, int baseDate, string expected, int ea = 7)
     {
         if (!vsm.IsConnected)
         {
@@ -153,16 +250,235 @@ public class TestHub(VSMConnectionService vsm, ComplianceTestService tests, Test
             return;
         }
 
-        DateTime issueDate = DateTime.Parse(issueDateStr);
-        var (token, error) = await tests.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
+        if (vsm.Driver != null) vsm.Driver.EA = ea;
 
-        if (token != null)
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            $"Running CTSA03 with custom params (EA{(ea == 11 ? "11" : "07")}, PAN={pan}, Value={value})...");
+
+        var service = ea == 11 ? (object)testsEA11 : testsEA07;
+        var result = ea == 11
+            ? await testsEA11.RunCTSA03(pan, reg, ti, mgmtType, value, issueDate, baseDate, expected)
+            : await testsEA07.RunCTSA03(pan, reg, ti, mgmtType, value, issueDate, baseDate, expected);
+
+        resultsStore.StoreTestResult(result);
+        await Clients.Caller.SendAsync("ReceiveSingleTestComplete", result);
+    }
+
+    // Generate single token
+    public async Task GenerateToken(string pan, string reg, string ti, string creditType,
+        decimal amount, string issueDateStr, int baseDate, int ea = 7,
+        string sgc = "201457", string krn = "1")
+    {
+        if (!vsm.IsConnected)
         {
-            await Clients.Caller.SendAsync("ReceiveToken", new { Token = token, Error = (string?)null });
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
         }
-        else
+
+        try
         {
-            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = error });
+            string eaLabel = ea == 11 ? "EA11" : "EA07";
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] CreditToken: PAN={pan} REG={reg} TI={ti} CT={creditType} Amount={amount} Date=\"{issueDateStr}\" BD={baseDate}");
+
+            // Set EA on driver before generating token
+            if (vsm.Driver != null) vsm.Driver.EA = ea;
+
+            DateTime issueDate = DateTime.Parse(issueDateStr);
+
+            // Log parsed date components for TID debugging
+            uint amountUnits = (uint)(amount * 10);
+            ushort stsAmt = StsHelper.EncodeAmount(amountUnits);
+            uint debugTid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
+                issueDate.Hour, issueDate.Minute, baseDate);
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] Parsed: {issueDate:yyyy-MM-dd HH:mm} → TID={debugTid} (0x{debugTid:X}), Amount={amountUnits}→STS=0x{stsAmt:X4}");
+
+            char krnChar = string.IsNullOrEmpty(krn) ? '1' : krn[0];
+            (string? token, string? error) result;
+            if (ea == 11)
+                result = await testsEA11.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate, sgc, krnChar);
+            else
+                result = await testsEA07.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate, sgc, krnChar);
+
+            if (result.token != null)
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] Token: {result.token}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] ERROR: {result.error}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+            }
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Exception: {ex.Message}");
+            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = ex.Message, EA = ea });
+        }
+    }
+
+    // Generate management token (ClearCredit, SetMaxPowerLimit, ClearTamper, SetMPUL)
+    public async Task GenerateManagementToken(string pan, string reg, string ti, string mgmtType,
+        ushort value, string issueDateStr, int baseDate, int ea = 7,
+        string sgc = "201457", string krn = "1")
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        try
+        {
+            string eaLabel = ea == 11 ? "EA11" : "EA07";
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] MgmtToken: PAN={pan} REG={reg} TI={ti} Type={mgmtType} Value={value} (0x{value:X4}) Date=\"{issueDateStr}\" BD={baseDate}");
+
+            // Set EA on driver before generating token
+            if (vsm.Driver != null) vsm.Driver.EA = ea;
+
+            DateTime issueDate = DateTime.Parse(issueDateStr);
+
+            // Log parsed date components for TID debugging
+            uint debugTid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
+                issueDate.Hour, issueDate.Minute, baseDate);
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] Parsed: {issueDate:yyyy-MM-dd HH:mm} → TID={debugTid} (0x{debugTid:X})");
+
+            char krnChar = string.IsNullOrEmpty(krn) ? '1' : krn[0];
+            (string? token, string? error) result;
+            if (ea == 11)
+                result = await testsEA11.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, sgc, krnChar);
+            else
+                result = await testsEA07.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, sgc, krnChar);
+
+            if (result.token != null)
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] Token: {result.token}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] ERROR: {result.error}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+            }
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Exception: {ex.Message}");
+            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = ex.Message, EA = ea });
+        }
+    }
+
+    // Log a token test result to SQLite
+    public async Task LogTokenTest(string? testVectorId, int ea, string category, string pan,
+        string? reg, string? ti, string? creditType, double? amount,
+        string? mgmtType, int? mgmtValue, string? issueDate, int? baseDate,
+        string? expectedToken, string? generatedToken, bool passed)
+    {
+        try
+        {
+            testLog.LogTokenTest(testVectorId, ea, category, pan, reg, ti,
+                creditType, amount, mgmtType, mgmtValue, issueDate, baseDate,
+                expectedToken, generatedToken, passed);
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Test logged: {(passed ? "PASS" : "FAIL")} — {testVectorId ?? "Manual"}");
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Log error: {ex.Message}");
+        }
+    }
+
+    // Generate keychange tokens (2 KCTs for EA07, 4 KCTs for EA11)
+    public async Task GenerateKeychangeTokens(string pan, string oldReg, string newReg,
+        string oldTi, string newTi, int ea = 7)
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        if (vsm.Driver == null)
+        {
+            await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+            {
+                FirstKCT = (string?)null, SecondKCT = (string?)null,
+                ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                Error = "VSM driver not available"
+            });
+            return;
+        }
+
+        try
+        {
+            if (ea == 11)
+            {
+                vsm.Driver.EA = 11;
+                var (t1, t2, t3, t4) = vsm.Driver.GenerateKeychangeQuad(pan, oldReg, newReg,
+                    "", "", oldTi, newTi, '1', '1', 255, 255, '0');
+
+                if (t1 != null && t2 != null && t3 != null && t4 != null)
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = StsHelper.FormatToken(t1),
+                        SecondKCT = StsHelper.FormatToken(t2),
+                        ThirdKCT = (string?)StsHelper.FormatToken(t3),
+                        FourthKCT = (string?)StsHelper.FormatToken(t4),
+                        Error = (string?)null
+                    });
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = (string?)null, SecondKCT = (string?)null,
+                        ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                        Error = vsm.Driver.LastError ?? "Unknown error"
+                    });
+                }
+            }
+            else
+            {
+                vsm.Driver.EA = 7;
+                var (t1, t2) = vsm.Driver.GenerateKeychangeTokens(pan, oldReg, newReg,
+                    "", "", oldTi, newTi, '1', '1', 255, 255, '0');
+
+                if (t1 != null && t2 != null)
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = StsHelper.FormatToken(t1),
+                        SecondKCT = StsHelper.FormatToken(t2),
+                        ThirdKCT = (string?)null,
+                        FourthKCT = (string?)null,
+                        Error = (string?)null
+                    });
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+                    {
+                        FirstKCT = (string?)null, SecondKCT = (string?)null,
+                        ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                        Error = vsm.Driver.LastError ?? "Unknown error"
+                    });
+                }
+            }
+
+            await Task.Delay(50);
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveKeychangeResult", new
+            {
+                FirstKCT = (string?)null, SecondKCT = (string?)null,
+                ThirdKCT = (string?)null, FourthKCT = (string?)null,
+                Error = ex.Message
+            });
         }
     }
 }

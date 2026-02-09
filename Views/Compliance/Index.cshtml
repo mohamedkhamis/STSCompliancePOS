@@ -1,6 +1,17 @@
 @model List<CTSATest>
 @{ ViewData["Title"] = "Compliance Test Suite"; }
 
+<!-- Toast Notification -->
+<div id="toast-notification" style="display: none; position: fixed; top: 24px; right: 24px; z-index: 9999; min-width: 320px; padding: 16px 24px; border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 1px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: opacity 0.3s, transform 0.3s; transform: translateY(-10px); opacity: 0;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="toast-icon" style="font-size: 24px;"></span>
+        <div>
+            <div id="toast-title" style="font-size: 16px;"></div>
+            <div id="toast-detail" style="font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.8;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="page-header">
     <h2>Compliance Test Suite</h2>
     <div class="subtitle">STS 531-1-07 Edition 2.2 · DKGA04/EA07 · @Model.Count Tests · @Model.Sum(t => t.TotalSteps) Steps</div>
@@ -71,6 +82,68 @@
                         <option value="CTSA24">CTSA24 — Extended Token Set</option>
                     </select>
                     <button class="btn btn-secondary" onclick="runIndividualTest()">Run</button>
+                </div>
+            </div>
+
+            <!-- CTSA03 Custom Parameters (shown when CTSA03 selected) -->
+            <div id="ctsa03-params" style="display: none; margin-top: 12px;">
+                <div style="font-size: 11px; font-weight: 700; color: var(--warn); margin-bottom: 8px; letter-spacing: 1px;">CTSA03 PARAMETERS</div>
+                <div class="grid-3" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">EA (Encryption Algorithm)</label>
+                        <select class="form-control" id="ctsa03-ea" style="font-size: 12px;" onchange="onCtsa03EaChange()">
+                            <option value="7">EA07 (DES)</option>
+                            <option value="11">EA11 (AES)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">MeterPAN</label>
+                        <select class="form-control" id="ctsa03-pan" style="font-size: 12px;">
+                            <option value="600727000000000009">600727000000000009 (11-digit)</option>
+                            <option value="000001000000000082">000001000000000082 (13-digit)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Key Register</label>
+                        <select class="form-control" id="ctsa03-reg" style="font-size: 12px;">
+                            <option value="01">01 — Main VUDK</option>
+                            <option value="02">02 — KRN=2</option>
+                            <option value="06">06 — BD=2035</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-4" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">TI</label>
+                        <input type="text" class="form-control" id="ctsa03-ti" value="01" style="font-size: 12px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">MgmtType</label>
+                        <select class="form-control" id="ctsa03-mgmt" style="font-size: 12px;">
+                            <option value="0">0 — SetMaxPowerLimit</option>
+                            <option value="1">1 — ClearCredit</option>
+                            <option value="5">5 — ClearTamper</option>
+                            <option value="6">6 — SetMPUL</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Value</label>
+                        <input type="number" class="form-control" id="ctsa03-value" value="10" style="font-size: 12px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Base Date</label>
+                        <input type="number" class="form-control" id="ctsa03-bd" value="2014" style="font-size: 12px;" />
+                    </div>
+                </div>
+                <div class="grid-2" style="gap: 8px;">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Issue Date</label>
+                        <input type="datetime-local" class="form-control" id="ctsa03-date" value="2024-03-28T09:01" style="font-size: 12px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label style="font-size: 10px;">Expected Token</label>
+                        <input type="text" class="form-control" id="ctsa03-expected" value="6896 1683 0643 2623 4122" style="font-size: 12px; font-family: var(--mono);" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -162,7 +235,7 @@
     // Run full suite from this page
     async function runFullSuiteFromPage() {
         if (!window.vsmConnection || !window.vsmConnection.isConnected) {
-            alert('VSM not connected. Please connect first via VSM Connection page.');
+            showWarnToast('VSM Not Connected', 'Please connect first via VSM Connection page.');
             return;
         }
 
@@ -179,26 +252,65 @@
         await runFullTestSuite(utility, currency, keychange, extended);
     }
 
+    // Show/hide CTSA03 params when test selection changes
+    document.getElementById('individual-test').addEventListener('change', function() {
+        const params = document.getElementById('ctsa03-params');
+        params.style.display = this.value === 'CTSA03' ? 'block' : 'none';
+    });
+
     // Run individual test
     async function runIndividualTest() {
         const testId = document.getElementById('individual-test').value;
         if (!testId) {
-            alert('Please select a test');
+            showWarnToast('No Test Selected', 'Please select a test.');
             return;
         }
 
         if (!window.vsmConnection || !window.vsmConnection.isConnected) {
-            alert('VSM not connected. Please connect first via VSM Connection page.');
+            showWarnToast('VSM Not Connected', 'Please connect first via VSM Connection page.');
             return;
         }
-
-        const utility = document.getElementById('run-utility').value;
 
         document.getElementById('realtime-results').style.display = 'block';
         const log = document.getElementById('realtime-log');
         log.innerHTML = `<div style="color: var(--accent);">Running ${testId}...</div>`;
 
+        // CTSA03: use custom parameters from the form
+        if (testId === 'CTSA03') {
+            const ea = parseInt(document.getElementById('ctsa03-ea').value);
+            const pan = document.getElementById('ctsa03-pan').value;
+            const reg = document.getElementById('ctsa03-reg').value;
+            const ti = document.getElementById('ctsa03-ti').value;
+            const mgmtType = document.getElementById('ctsa03-mgmt').value;
+            const value = parseInt(document.getElementById('ctsa03-value').value);
+            const bd = parseInt(document.getElementById('ctsa03-bd').value);
+            const dateVal = document.getElementById('ctsa03-date').value.replace('T', ' ');
+            const expected = document.getElementById('ctsa03-expected').value;
+
+            try {
+                await window.vsmConnection.hub.invoke("RunCTSA03WithParams",
+                    pan, reg, ti, mgmtType, value, dateVal, bd, expected, ea);
+            } catch (err) {
+                console.error("[VSM] RunCTSA03WithParams error:", err);
+                showWarnToast('Test Error', err.message || 'Failed to run CTSA03');
+            }
+            return;
+        }
+
+        const utility = document.getElementById('run-utility').value;
         await runSingleTest(testId, utility);
+    }
+
+    // Update CTSA03 defaults when EA changes
+    function onCtsa03EaChange() {
+        const ea = parseInt(document.getElementById('ctsa03-ea').value);
+        if (ea === 11) {
+            document.getElementById('ctsa03-value').value = '1';
+            document.getElementById('ctsa03-expected').value = '3449 4889 4753 7886 6499';
+        } else {
+            document.getElementById('ctsa03-value').value = '10';
+            document.getElementById('ctsa03-expected').value = '6896 1683 0643 2623 4122';
+        }
     }
 
     // Export results
@@ -211,12 +323,52 @@
         window.open('/api/vsm/report/print', '_blank');
     }
 
+    function showCompToast(success, title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+        toast.style.border = success ? '2px solid rgba(16,185,129,0.5)' : '2px solid rgba(239,68,68,0.5)';
+        toast.style.color = success ? 'var(--success)' : 'var(--error)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
+    function showWarnToast(title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = 'rgba(245,158,11,0.12)';
+        toast.style.border = '2px solid rgba(245,158,11,0.5)';
+        toast.style.color = 'var(--warn)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = '\u26A0\uFE0F';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
     // Handle test progress
     window.onTestComplete = function(result) {
         const log = document.getElementById('realtime-log');
         if (log) {
             log.innerHTML += `<div style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}; font-weight: bold; margin-top: 10px;">
-                ═══ Suite Complete: ${result.totalPassed}/${result.totalSteps} passed ═══
+                \u2550\u2550\u2550 Suite Complete: ${result.totalPassed}/${result.totalSteps} passed \u2550\u2550\u2550
             </div>`;
 
             // Show export buttons
@@ -225,26 +377,54 @@
                 <button class="btn btn-sm btn-secondary" onclick="exportResults('html')">Export HTML</button>
             </div>`;
         }
+
+        // Log each step result to SQLite
+        if (result.stepResults) {
+            result.stepResults.forEach(step => {
+                logTokenTest(step.testVectorId || result.testId, step.ea || 7, step.category || 'credit',
+                    step.pan || '', step.register || null, step.ti || null,
+                    step.creditType || null, step.amount || null,
+                    step.mgmtType || null, step.mgmtValue || null,
+                    step.issueDate || null, step.baseDate || null,
+                    step.expected || null, step.actual || null, step.passed);
+            });
+        }
+
+        showCompToast(result.allPassed,
+            result.allPassed ? 'ALL TESTS PASSED' : 'TESTS FAILED',
+            `${result.totalPassed}/${result.totalSteps} passed`);
     };
 
     window.onSingleTestComplete = function(result) {
         const log = document.getElementById('realtime-log');
         if (log) {
             log.innerHTML = `<div style="color: ${result.allPassed ? 'var(--success)' : 'var(--error)'}; font-weight: bold;">
-                ${result.testId} — ${result.testName}: ${result.passedCount}/${result.steps.length} passed
+                ${result.testId} \u2014 ${result.testName}: ${result.passedCount}/${result.steps.length} passed
             </div>`;
 
             result.steps.forEach(step => {
                 const color = step.passed ? 'var(--success)' : 'var(--error)';
-                const icon = step.passed ? '✓' : '✗';
+                const icon = step.passed ? '\u2713' : '\u2717';
                 log.innerHTML += `<div style="margin: 4px 0; padding: 8px; background: var(--card); border-radius: 4px;">
                     <span style="color: ${color}">${icon}</span>
                     <span style="color: var(--text-dim); font-size: 11px;">#${step.step}</span>
                     ${step.description}<br>
                     <span style="font-family: var(--mono); color: var(--accent); font-size: 12px;">${step.actual}</span>
                 </div>`;
+
+                // Log each step to SQLite
+                logTokenTest(result.testId + '-' + step.step, 7, step.category || 'credit',
+                    step.pan || '', step.register || null, step.ti || null,
+                    step.creditType || null, step.amount || null,
+                    step.mgmtType || null, step.mgmtValue || null,
+                    step.issueDate || null, step.baseDate || null,
+                    step.expected || null, step.actual || null, step.passed);
             });
         }
+
+        showCompToast(result.allPassed,
+            result.allPassed ? `${result.testId} PASSED` : `${result.testId} FAILED`,
+            `${result.passedCount}/${result.steps.length} steps passed`);
     };
 </script>
 }
