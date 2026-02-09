@@ -237,6 +237,9 @@ public class TestHub(
         {
             await Clients.Caller.SendAsync("ReceiveProgress", $"Generating {creditType} token (EA{(ea == 11 ? "11" : "07")})...");
 
+            // Set EA on driver before generating token
+            if (vsm.Driver != null) vsm.Driver.EA = ea;
+
             DateTime issueDate = DateTime.Parse(issueDateStr);
 
             (string? token, string? error) result;
@@ -276,6 +279,9 @@ public class TestHub(
         try
         {
             await Clients.Caller.SendAsync("ReceiveProgress", $"Generating {mgmtType} management token (EA{(ea == 11 ? "11" : "07")})...");
+
+            // Set EA on driver before generating token
+            if (vsm.Driver != null) vsm.Driver.EA = ea;
 
             DateTime issueDate = DateTime.Parse(issueDateStr);
 

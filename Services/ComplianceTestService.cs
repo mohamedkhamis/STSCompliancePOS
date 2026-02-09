@@ -567,20 +567,31 @@ public class ComplianceTestService(VSMConnectionService vsm)
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
             ushort stsAmt = StsHelper.EncodeAmount(amount);
 
+
+            // Diagnostic: log parameters for debugging
+            Console.WriteLine($"[CREDIT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={creditType} Amount={amount}→STS={stsAmt} (0x{stsAmt:X4}) TID={tid} (0x{tid:X})");
+
             string? token = vsm.Driver.GenerateCreditToken(pan, reg, "", ti, '1', 255,
                 creditType, tid, stsAmt);
+
+            // Diagnostic: log TX/RX
+            Console.WriteLine($"[CREDIT] TX: {vsm.Driver.LastTx}");
+            Console.WriteLine($"[CREDIT] RX: {vsm.Driver.LastRx}");
 
             // ReSharper disable  ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (token != null)
             {
                 result.Actual = StsHelper.FormatToken(token);
                 result.Passed = token == StsHelper.NormalizeToken(expected);
+                if (!result.Passed)
+                    Console.WriteLine($"[CREDIT] MISMATCH: expected={StsHelper.NormalizeToken(expected)} actual={token}");
             }
             else
             {
                 result.Actual = "(null)";
                 result.Passed = false;
                 result.ErrorInfo = vsm.Driver.LastError;
+                Console.WriteLine($"[CREDIT] ERROR: {vsm.Driver.LastError}");
             }
         }
         catch (Exception ex)
@@ -616,20 +627,30 @@ public class ComplianceTestService(VSMConnectionService vsm)
             var (y, m, d, h, mn) = ParseDate(dateStr);
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
 
+            // Diagnostic: log parameters for debugging
+            Console.WriteLine($"[MGMT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={mgmtType} Value={value} (0x{value:X4}) TID={tid} (0x{tid:X})");
+
             string? token = vsm.Driver.GenerateManagementToken(pan, reg, "", ti, '1', 255,
                 mgmtType, tid, value);
+
+            // Diagnostic: log TX/RX
+            Console.WriteLine($"[MGMT] TX: {vsm.Driver.LastTx}");
+            Console.WriteLine($"[MGMT] RX: {vsm.Driver.LastRx}");
 
             // ReSharper disable  ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (token != null)
             {
                 result.Actual = StsHelper.FormatToken(token);
                 result.Passed = token == StsHelper.NormalizeToken(expected);
+                if (!result.Passed)
+                    Console.WriteLine($"[MGMT] MISMATCH: expected={StsHelper.NormalizeToken(expected)} actual={token}");
             }
             else
             {
                 result.Actual = "(null)";
                 result.Passed = false;
                 result.ErrorInfo = vsm.Driver.LastError;
+                Console.WriteLine($"[MGMT] ERROR: {vsm.Driver.LastError}");
             }
         }
         catch (Exception ex)
@@ -637,6 +658,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
             result.Actual = "(error)";
             result.Passed = false;
             result.ErrorInfo = ex.Message;
+            Console.WriteLine($"[MGMT] EXCEPTION: {ex.Message}");
         }
 
         await Task.Delay(50);
