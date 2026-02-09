@@ -1,0 +1,365 @@
+@{ ViewData["Title"] = "Test Log Report"; }
+
+<div class="page-header">
+    <h2>Test Log Report</h2>
+    <div class="subtitle" id="page-subtitle">Loading test log data...</div>
+</div>
+
+<!-- Summary Banner -->
+<div class="card card-accent-success" style="margin-bottom: 24px;" id="summary-banner">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="font-size: 12px; color: var(--text-dim);">Overall Pass Rate</div>
+            <div id="banner-status" style="font-size: 18px; font-weight: 800; color: var(--success); margin-top: 4px;">
+                Loading...
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                Token validation results from SQLite test log database
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div id="banner-ratio" style="font-size: 36px; font-weight: 900; color: var(--accent); font-family: var(--mono);">
+                —/—
+            </div>
+            <div style="font-size: 11px; color: var(--text-dim);">Tests Logged</div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="grid-4" style="margin-bottom: 24px;">
+    <div class="stat-card">
+        <div class="stat-value green" id="stat-total">@ViewBag.Total</div>
+        <div class="stat-label">Total Tests</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-passed" style="color: var(--success);">@ViewBag.Passed</div>
+        <div class="stat-label">Passed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-failed" style="color: var(--error);">@ViewBag.Failed</div>
+        <div class="stat-label">Failed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value blue" id="stat-rate">@ViewBag.PassRate%</div>
+        <div class="stat-label">Pass Rate</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card card-accent-warn" style="margin-bottom: 16px;">
+    <div class="card-title warn">Filters</div>
+    <div class="grid-4" style="gap: 12px;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label>EA Version</label>
+            <select class="form-control" id="filter-ea" onchange="applyFilters()">
+                <option value="">All</option>
+                <option value="7">EA07</option>
+                <option value="11">EA11</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label>Category</label>
+            <select class="form-control" id="filter-category" onchange="applyFilters()">
+                <option value="">All</option>
+                <option value="credit">Credit</option>
+                <option value="management">Management</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label>PAN</label>
+            <select class="form-control" id="filter-pan" onchange="applyFilters()">
+                <option value="">All</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label>Result</label>
+            <select class="form-control" id="filter-result" onchange="applyFilters()">
+                <option value="">All</option>
+                <option value="1">PASS</option>
+                <option value="0">FAIL</option>
+            </select>
+        </div>
+    </div>
+    <div style="margin-top: 12px; text-align: right;">
+        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Clear Filters</button>
+        <span id="filter-count" style="font-size: 11px; color: var(--text-dim); margin-left: 12px;"></span>
+    </div>
+</div>
+
+<!-- Results Table -->
+<div class="card card-accent-blue">
+    <div class="card-title blue">Test Results</div>
+    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;" id="table-container">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;" id="results-table">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--card-border); position: sticky; top: 0; background: var(--card); z-index: 1;">
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">#</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">Timestamp</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">Test Vector</th>
+                    <th style="padding: 10px 8px; text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">EA</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">Category</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">PAN</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">Expected Token</th>
+                    <th style="padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">Generated Token</th>
+                    <th style="padding: 10px 8px; text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">Result</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+                <tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Export Section -->
+<div class="card" style="margin-top: 8px;">
+    <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+        <a href="/TestLog/ExportCsv" class="btn btn-secondary btn-sm">Export CSV</a>
+        <button class="btn btn-secondary btn-sm" onclick="exportJson()">Export JSON</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print Report</button>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let allLogs = [];
+    let filteredLogs = [];
+    let expandedRow = null;
+
+    document.addEventListener('DOMContentLoaded', loadLogs);
+
+    async function loadLogs() {
+        try {
+            const response = await fetch('/TestLog/GetLogs');
+            allLogs = await response.json();
+            populatePanFilter();
+            applyFilters();
+            updateSubtitle();
+        } catch (err) {
+            document.getElementById('results-body').innerHTML =
+                '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--error);">Failed to load test logs</td></tr>';
+        }
+    }
+
+    function updateSubtitle() {
+        const total = allLogs.length;
+        const passed = allLogs.filter(l => l.Passed === 1 || l.Passed === true).length;
+        document.getElementById('page-subtitle').textContent =
+            total + ' test results recorded \u00B7 ' + passed + ' passed';
+
+        // Update banner
+        const rate = total > 0 ? (passed / total * 100).toFixed(1) : 0;
+        const bannerStatus = document.getElementById('banner-status');
+        if (rate >= 100) {
+            bannerStatus.textContent = '\u25CF ALL TESTS PASSED';
+            bannerStatus.style.color = 'var(--success)';
+        } else if (rate >= 80) {
+            bannerStatus.textContent = '\u25CF ' + rate + '% PASS RATE';
+            bannerStatus.style.color = 'var(--warn)';
+        } else {
+            bannerStatus.textContent = '\u25CF ' + rate + '% PASS RATE \u2014 NEEDS ATTENTION';
+            bannerStatus.style.color = 'var(--error)';
+        }
+        document.getElementById('banner-ratio').textContent = passed + '/' + total;
+    }
+
+    function populatePanFilter() {
+        const pans = [...new Set(allLogs.map(l => l.PAN).filter(Boolean))];
+        const select = document.getElementById('filter-pan');
+        select.innerHTML = '<option value="">All</option>';
+        pans.forEach(pan => {
+            const opt = document.createElement('option');
+            opt.value = pan;
+            opt.textContent = pan;
+            select.appendChild(opt);
+        });
+    }
+
+    function applyFilters() {
+        const ea = document.getElementById('filter-ea').value;
+        const cat = document.getElementById('filter-category').value;
+        const pan = document.getElementById('filter-pan').value;
+        const result = document.getElementById('filter-result').value;
+
+        filteredLogs = allLogs.filter(log => {
+            if (ea && String(log.EA) !== ea) return false;
+            if (cat && (log.Category || '').toLowerCase() !== cat.toLowerCase()) return false;
+            if (pan && log.PAN !== pan) return false;
+            if (result !== '' && String(log.Passed) !== result) return false;
+            return true;
+        });
+
+        renderTable();
+        updateFilterCount();
+    }
+
+    function clearFilters() {
+        document.getElementById('filter-ea').value = '';
+        document.getElementById('filter-category').value = '';
+        document.getElementById('filter-pan').value = '';
+        document.getElementById('filter-result').value = '';
+        applyFilters();
+    }
+
+    function updateFilterCount() {
+        const el = document.getElementById('filter-count');
+        if (filteredLogs.length === allLogs.length) {
+            el.textContent = 'Showing all ' + allLogs.length + ' results';
+        } else {
+            el.textContent = 'Showing ' + filteredLogs.length + ' of ' + allLogs.length + ' results';
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('results-body');
+        expandedRow = null;
+
+        if (filteredLogs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-dim);">No test logs found</td></tr>';
+            return;
+        }
+
+        let html = '';
+        filteredLogs.forEach((log, idx) => {
+            const passed = log.Passed === 1 || log.Passed === true;
+            const rowBg = passed ? 'rgba(16,185,129,0.04)' : 'rgba(239,68,68,0.04)';
+            const rowBorder = passed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+            const ts = formatTimestamp(log.Timestamp);
+            const expectedDisplay = formatToken(log.ExpectedToken);
+            const generatedDisplay = formatToken(log.GeneratedToken);
+
+            html += '<tr data-idx="' + idx + '" onclick="toggleDetail(' + idx + ')" style="cursor:pointer;border-bottom:1px solid var(--card-border);background:' + rowBg + ';border-left:3px solid ' + rowBorder + ';transition:background 0.15s;" onmouseover="this.style.background=\'var(--card-hover)\'" onmouseout="this.style.background=\'' + rowBg + '\'">';
+            html += '<td style="padding:10px 8px;font-family:var(--mono);font-size:11px;color:var(--text-dim);">' + (idx + 1) + '</td>';
+            html += '<td style="padding:10px 8px;font-size:11px;">' + ts + '</td>';
+            html += '<td style="padding:10px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);">' + esc(log.TestVectorId || '\u2014') + '</td>';
+            html += '<td style="padding:10px 8px;text-align:center;font-family:var(--mono);font-size:12px;">' + esc(String(log.EA || '')) + '</td>';
+            html += '<td style="padding:10px 8px;font-size:11px;text-transform:capitalize;">' + esc(log.Category || '') + '</td>';
+            html += '<td style="padding:10px 8px;font-family:var(--mono);font-size:10px;color:var(--text-secondary);">' + esc(log.PAN || '') + '</td>';
+            html += '<td style="padding:10px 8px;font-family:var(--mono);font-size:10px;color:var(--blue);letter-spacing:0.5px;">' + expectedDisplay + '</td>';
+            html += '<td style="padding:10px 8px;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:0.5px;">' + generatedDisplay + '</td>';
+            html += '<td style="padding:10px 8px;text-align:center;"><span class="badge ' + (passed ? 'badge-pass' : 'badge-fail') + '">' + (passed ? 'PASS' : 'FAIL') + '</span></td>';
+            html += '</tr>';
+
+            // Detail row (hidden by default)
+            html += '<tr id="detail-' + idx + '" style="display:none;">';
+            html += '<td colspan="9" style="padding:0;border-bottom:1px solid var(--card-border);">';
+            html += buildDetailPanel(log, passed);
+            html += '</td></tr>';
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function buildDetailPanel(log, passed) {
+        const bg = passed ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)';
+        const border = passed ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)';
+
+        let html = '<div style="padding:16px 20px;background:' + bg + ';border-left:3px solid ' + border + ';">';
+
+        // Token comparison
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">';
+        html += '<div><div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px;">Expected Token</div>';
+        html += '<div style="font-family:var(--mono);font-size:14px;color:var(--blue);background:#000;padding:10px;border-radius:6px;text-align:center;letter-spacing:1px;">' + formatToken(log.ExpectedToken) + '</div></div>';
+        html += '<div><div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px;">Generated Token</div>';
+        html += '<div style="font-family:var(--mono);font-size:14px;color:var(--accent);background:#000;padding:10px;border-radius:6px;text-align:center;letter-spacing:1px;">' + formatToken(log.GeneratedToken) + '</div></div>';
+        html += '</div>';
+
+        // Detail fields
+        html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">';
+        html += detailField('Key Register', log.KeyRegister);
+        html += detailField('TI', log.TI);
+        html += detailField('Credit Type', formatCreditType(log.CreditType));
+        html += detailField('Amount', log.Amount != null ? log.Amount : '\u2014');
+        html += detailField('Mgmt Type', log.MgmtType);
+        html += detailField('Mgmt Value', log.MgmtValue);
+        html += detailField('Issue Date', log.IssueDate || '\u2014');
+        html += detailField('Base Date', log.BaseDate);
+        html += '</div>';
+
+        if (log.Error) {
+            html += '<div style="margin-top:10px;padding:8px 12px;background:var(--error-dim);border:1px solid rgba(239,68,68,0.2);border-radius:6px;font-size:11px;color:var(--error);font-family:var(--mono);">' + esc(log.Error) + '</div>';
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    function detailField(label, value) {
+        return '<div style="padding:6px 0;">' +
+            '<div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">' + label + '</div>' +
+            '<div style="font-family:var(--mono);font-size:12px;color:var(--text);margin-top:2px;">' + esc(value != null ? String(value) : '\u2014') + '</div>' +
+            '</div>';
+    }
+
+    function toggleDetail(idx) {
+        const row = document.getElementById('detail-' + idx);
+        if (!row) return;
+
+        if (expandedRow !== null && expandedRow !== idx) {
+            const prev = document.getElementById('detail-' + expandedRow);
+            if (prev) prev.style.display = 'none';
+        }
+
+        if (row.style.display === 'none') {
+            row.style.display = 'table-row';
+            expandedRow = idx;
+        } else {
+            row.style.display = 'none';
+            expandedRow = null;
+        }
+    }
+
+    function formatTimestamp(ts) {
+        if (!ts) return '\u2014';
+        try {
+            const d = new Date(ts);
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0') + ' ' +
+                String(d.getHours()).padStart(2, '0') + ':' +
+                String(d.getMinutes()).padStart(2, '0') + ':' +
+                String(d.getSeconds()).padStart(2, '0');
+        } catch { return ts; }
+    }
+
+    function formatToken(token) {
+        if (!token) return '\u2014';
+        const clean = String(token).replace(/\s/g, '');
+        if (clean.length === 20) {
+            return esc(clean.substring(0, 4) + ' ' + clean.substring(4, 8) + ' ' +
+                clean.substring(8, 12) + ' ' + clean.substring(12, 16) + ' ' + clean.substring(16, 20));
+        }
+        return esc(token);
+    }
+
+    function formatCreditType(ct) {
+        if (ct == null) return '\u2014';
+        switch (String(ct)) {
+            case '0': return 'Electricity';
+            case '1': return 'Water';
+            case '2': return 'Gas';
+            case '3': return 'Time';
+            default: return ct;
+        }
+    }
+
+    function esc(str) {
+        if (str == null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
+    function exportJson() {
+        const dataStr = JSON.stringify(filteredLogs, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'TestLog_' + new Date().toISOString().slice(0, 19).replace(/[:-]/g, '') + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+</script>
+}

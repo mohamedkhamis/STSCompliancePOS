@@ -106,6 +106,42 @@ public class TestLogService : IDisposable
         return results;
     }
 
+    public Dictionary<string, object> GetStatistics()
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT
+                COUNT(*) AS Total,
+                SUM(CASE WHEN Passed = 1 THEN 1 ELSE 0 END) AS Passed,
+                SUM(CASE WHEN Passed = 0 THEN 1 ELSE 0 END) AS Failed
+            FROM TestLog";
+
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            var total = reader.GetInt64(0);
+            var passed = reader.IsDBNull(1) ? 0 : reader.GetInt64(1);
+            var failed = reader.IsDBNull(2) ? 0 : reader.GetInt64(2);
+            var passRate = total > 0 ? Math.Round((double)passed / total * 100, 1) : 0;
+
+            return new Dictionary<string, object>
+            {
+                ["Total"] = total,
+                ["Passed"] = passed,
+                ["Failed"] = failed,
+                ["PassRate"] = passRate
+            };
+        }
+
+        return new Dictionary<string, object>
+        {
+            ["Total"] = 0L,
+            ["Passed"] = 0L,
+            ["Failed"] = 0L,
+            ["PassRate"] = 0.0
+        };
+    }
+
     public void Dispose()
     {
         _connection?.Dispose();
