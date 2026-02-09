@@ -82,10 +82,21 @@
 
             <div class="form-group">
                 <label>Encryption Algorithm (EA)</label>
-                <select class="form-control" id="vend-ea">
+                <select class="form-control" id="vend-ea" onchange="onVendEaChange()">
                     <option value="7">EA07 (STS 531-1-07)</option>
                     <option value="11">EA11 (STS 531-1-11)</option>
                 </select>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>SGC</label>
+                    <input type="text" class="form-control" id="vend-sgc" value="201457" />
+                </div>
+                <div class="form-group">
+                    <label>KRN</label>
+                    <input type="text" class="form-control" id="vend-krn" value="1" />
+                </div>
             </div>
 
             <div class="grid-2">
@@ -251,10 +262,10 @@
             { id: "CTSA01-6", label: "CTSA01 S6: 0.1kl Water, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "1", amount: 0.1, date: "2014-03-01T13:45", bd: 2014, expected: "0353 0385 5551 6557 9931" },
             { id: "CTSA01-7", label: "CTSA01 S7: 0.1m3 Gas, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "2", amount: 0.1, date: "2014-03-01T13:50", bd: 2014, expected: "0545 5142 6230 5752 5239" },
             { id: "CTSA01-8", label: "CTSA01 S8: 0.1min Time, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "3", amount: 0.1, date: "2014-03-01T13:55", bd: 2014, expected: "3449 8403 1437 9750 2264" },
-            { id: "CTSA01-9", label: "CTSA01 S9: 0.1kWh Elec, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "0", amount: 0.1, date: "2035-01-01T08:00", bd: 2035, expected: "4921 7377 4370 6573 1889" },
-            { id: "CTSA01-10", label: "CTSA01 S10: 0.1kl Water, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "1", amount: 0.1, date: "2035-01-01T08:05", bd: 2035, expected: "6588 8845 1435 4412 8525" },
-            { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, expected: "4724 3053 8433 6996 6174" },
-            { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, expected: "3012 7467 7392 8379 0161" },
+            { id: "CTSA01-9", label: "CTSA01 S9: 0.1kWh Elec, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "0", amount: 0.1, date: "2035-01-01T08:00", bd: 2035, krn: "6", expected: "4921 7377 4370 6573 1889" },
+            { id: "CTSA01-10", label: "CTSA01 S10: 0.1kl Water, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "1", amount: 0.1, date: "2035-01-01T08:05", bd: 2035, krn: "6", expected: "6588 8845 1435 4412 8525" },
+            { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, krn: "6", expected: "4724 3053 8433 6996 6174" },
+            { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, krn: "6", expected: "3012 7467 7392 8379 0161" },
             // CTSA03 — SetMaximumPowerLimit (EA07)
             { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 10, date: "2024-03-28T09:01", bd: 2014, expected: "6896 1683 0643 2623 4122" },
             // CTSA04 — ClearCredit (EA07)
@@ -281,10 +292,10 @@
             { id: "CTSA01-6", label: "CTSA01 S6: 0.1kl Water, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "1", amount: 0.1, date: "2014-03-01T13:45", bd: 2014, expected: "2816 8470 1473 2058 0432" },
             { id: "CTSA01-7", label: "CTSA01 S7: 0.1m3 Gas, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "2", amount: 0.1, date: "2014-03-01T13:50", bd: 2014, expected: "1563 2590 8517 9990 5715" },
             { id: "CTSA01-8", label: "CTSA01 S8: 0.1min Time, PAN=13, BD=2014", cat: "credit", pan: "000001000000000082", reg: "01", ti: "01", ct: "3", amount: 0.1, date: "2014-03-01T13:55", bd: 2014, expected: "5340 4104 5344 4817 3435" },
-            { id: "CTSA01-9", label: "CTSA01 S9: 0.1kWh Elec, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "0", amount: 0.1, date: "2035-01-01T08:00", bd: 2035, expected: "5993 6545 0505 5030 8168" },
-            { id: "CTSA01-10", label: "CTSA01 S10: 0.1kl Water, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "1", amount: 0.1, date: "2035-01-01T08:05", bd: 2035, expected: "5503 0884 2515 9891 3292" },
-            { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, expected: "1406 4537 3119 1633 7013" },
-            { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, expected: "6462 2162 7715 3760 4642" },
+            { id: "CTSA01-9", label: "CTSA01 S9: 0.1kWh Elec, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "0", amount: 0.1, date: "2035-01-01T08:00", bd: 2035, krn: "6", expected: "5993 6545 0505 5030 8168" },
+            { id: "CTSA01-10", label: "CTSA01 S10: 0.1kl Water, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "1", amount: 0.1, date: "2035-01-01T08:05", bd: 2035, krn: "6", expected: "5503 0884 2515 9891 3292" },
+            { id: "CTSA01-11", label: "CTSA01 S11: 0.1m3 Gas, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "2", amount: 0.1, date: "2035-01-01T08:10", bd: 2035, krn: "6", expected: "1406 4537 3119 1633 7013" },
+            { id: "CTSA01-12", label: "CTSA01 S12: 0.1min Time, BD=2035, KRN=6", cat: "credit", pan: "600727000000000009", reg: "06", ti: "01", ct: "3", amount: 0.1, date: "2035-01-01T08:15", bd: 2035, krn: "6", expected: "6462 2162 7715 3760 4642" },
             // CTSA03 — SetMaximumPowerLimit (EA11)
             { id: "CTSA03-1", label: "CTSA03: SetMPL 1kW", cat: "management", pan: "600727000000000009", reg: "01", ti: "01", mgmtType: "0", mgmtValue: 1, date: "2024-03-28T09:01", bd: 2014, expected: "3449 4889 4753 7886 6499" },
             // CTSA04 — ClearCredit (EA11)
@@ -349,6 +360,9 @@
         document.getElementById('vend-reg').value = v.reg;
         // Set TI
         document.getElementById('vend-ti').value = v.ti;
+        // Set SGC and KRN (defaults: 201457, 1)
+        document.getElementById('vend-sgc').value = v.sgc || '201457';
+        document.getElementById('vend-krn').value = v.krn || '1';
         // Set date
         document.getElementById('vend-date').value = v.date;
         // Set base date
@@ -389,6 +403,26 @@
         document.getElementById('mgmt-fields').style.display = cat === 'management' ? 'block' : 'none';
     }
 
+    // Update default management value when EA changes (CTSA03: SetMPL 1kW)
+    function onVendEaChange() {
+        const ea = parseInt(document.getElementById('vend-ea').value);
+        const mgmtType = document.getElementById('vend-mgmt-type').value;
+        const cat = document.getElementById('vend-category').value;
+
+        // Only update value for SetMaximumPowerLimit (mgmtType=0) management tokens
+        if (cat === 'management' && mgmtType === '0') {
+            const newVal = (ea === 11) ? 1 : 10;
+            document.getElementById('vend-mgmt-value').value = newVal;
+            console.log(`[Vending] EA changed to ${ea} → SetMPL default value = ${newVal}`);
+        }
+
+        // Sync test vector EA selector
+        document.getElementById('tv-ea').value = ea.toString();
+        populateTestVectors();
+
+        console.log(`[Vending] EA switched to EA${ea === 11 ? '11' : '07'}`);
+    }
+
     async function vendGenerateToken() {
         if (!window.vsmConnection.isConnected) {
             showWarnToast('VSM Not Connected', 'Go to Connection page first.');
@@ -398,9 +432,12 @@
         const pan = document.getElementById('vend-pan').value;
         const reg = document.getElementById('vend-reg').value;
         const ti = document.getElementById('vend-ti').value;
-        const dateStr = document.getElementById('vend-date').value;
+        const rawDate = document.getElementById('vend-date').value;
+        const dateStr = rawDate.replace('T', ' '); // Normalize "2024-03-28T09:01" → "2024-03-28 09:01"
         const bd = parseInt(document.getElementById('vend-bd').value);
         const ea = parseInt(document.getElementById('vend-ea').value);
+        const sgc = document.getElementById('vend-sgc').value;
+        const krn = document.getElementById('vend-krn').value;
         const category = document.getElementById('vend-category').value;
 
         // Hide previous results
@@ -412,11 +449,13 @@
         if (category === 'credit') {
             const ct = document.getElementById('vend-ct').value;
             const amount = parseFloat(document.getElementById('vend-amount').value);
-            await generateToken(pan, reg, ti, ct, amount, dateStr, bd, ea);
+            console.log(`[Vending] Credit: PAN=${pan} REG=${reg} TI=${ti} CT=${ct} Amount=${amount} Date="${dateStr}" BD=${bd} EA=${ea} SGC=${sgc} KRN=${krn}`);
+            await generateToken(pan, reg, ti, ct, amount, dateStr, bd, ea, sgc, krn);
         } else {
             const mgmtType = document.getElementById('vend-mgmt-type').value;
             const value = parseInt(document.getElementById('vend-mgmt-value').value);
-            await generateManagementToken(pan, reg, ti, mgmtType, value, dateStr, bd, ea);
+            console.log(`[Vending] Mgmt: PAN=${pan} REG=${reg} TI=${ti} MgmtType=${mgmtType} Value=${value} Date="${dateStr}" BD=${bd} EA=${ea} SGC=${sgc} KRN=${krn}`);
+            await generateManagementToken(pan, reg, ti, mgmtType, value, dateStr, bd, ea, sgc, krn);
         }
     }
 

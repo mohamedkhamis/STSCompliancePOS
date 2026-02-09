@@ -160,7 +160,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
         };
 
         result.Steps.Add(await RunCreditStep($"0.1 {utilityType} TransferCredit, BD=2035, KRN=6",
-            PAN_11, REG_BD2035, "01", ct, steps9_12[idx, 0], 1, 2035, steps9_12[idx, 1]));
+            PAN_11, REG_BD2035, "01", ct, steps9_12[idx, 0], 1, 2035, steps9_12[idx, 1],
+            sgc: "203557", krn: '6'));
 
         result.EndTime = DateTime.UtcNow;
         return result;
@@ -551,7 +552,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     //  Helper Methods — Execute actual VSM commands
     // =========================================================================
     private async Task<TestStepResult> RunCreditStep(string desc, string pan, string reg,
-        string ti, string creditType, string dateStr, uint amount, int baseDate, string expected)
+        string ti, string creditType, string dateStr, uint amount, int baseDate, string expected,
+        string sgc = "201457", char krn = '1')
     {
         var result = new TestStepResult
         {
@@ -578,7 +580,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
             // Diagnostic: log parameters for debugging
             Console.WriteLine($"[CREDIT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={creditType} Amount={amount}→STS={stsAmt} (0x{stsAmt:X4}) TID={tid} (0x{tid:X})");
 
-            string? token = vsm.Driver.GenerateCreditToken(pan, reg, "", ti, '1', 255,
+            string? token = vsm.Driver.GenerateCreditToken(pan, reg, sgc, ti, krn, 255,
                 creditType, tid, stsAmt);
 
             // Diagnostic: log TX/RX
@@ -613,7 +615,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     }
 
     private async Task<TestStepResult> RunManagementStep(string desc, string pan, string reg,
-        string ti, string mgmtType, string dateStr, ushort value, int baseDate, string expected)
+        string ti, string mgmtType, string dateStr, ushort value, int baseDate, string expected,
+        string sgc = "201457", char krn = '1')
     {
         var result = new TestStepResult
         {
@@ -637,7 +640,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
             // Diagnostic: log parameters for debugging
             Console.WriteLine($"[MGMT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={mgmtType} Value={value} (0x{value:X4}) TID={tid} (0x{tid:X})");
 
-            string? token = vsm.Driver.GenerateManagementToken(pan, reg, "", ti, '1', 255,
+            string? token = vsm.Driver.GenerateManagementToken(pan, reg, sgc, ti, krn, 255,
                 mgmtType, tid, value);
 
             // Diagnostic: log TX/RX
@@ -732,7 +735,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     // =========================================================================
     public Task<(string? token, string? error)> GenerateSingleToken(
         string pan, string reg, string ti, string creditType,
-        decimal amount, DateTime issueDate, int baseDate)
+        decimal amount, DateTime issueDate, int baseDate,
+        string sgc = "201457", char krn = '1')
     {
         if (vsm.Driver == null)
             return Task.FromResult<(string? token, string? error)>((null, "VSM not connected"));
@@ -744,7 +748,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
             uint amountUnits = (uint)(amount * 10);
             ushort stsAmt = StsHelper.EncodeAmount(amountUnits);
 
-            string? token = vsm.Driver.GenerateCreditToken(pan, reg, "", ti, '1', 255,
+            string? token = vsm.Driver.GenerateCreditToken(pan, reg, sgc, ti, krn, 255,
                 creditType, tid, stsAmt);
 
             if (token != null)
@@ -763,7 +767,8 @@ public class ComplianceTestService(VSMConnectionService vsm)
     // =========================================================================
     public Task<(string? token, string? error)> GenerateSingleManagementToken(
         string pan, string reg, string ti, string mgmtType,
-        ushort value, DateTime issueDate, int baseDate)
+        ushort value, DateTime issueDate, int baseDate,
+        string sgc = "201457", char krn = '1')
     {
         if (vsm.Driver == null)
             return Task.FromResult<(string? token, string? error)>((null, "VSM not connected"));
@@ -773,7 +778,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
             uint tid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
                 issueDate.Hour, issueDate.Minute, baseDate);
 
-            string? token = vsm.Driver.GenerateManagementToken(pan, reg, "", ti, '1', 255,
+            string? token = vsm.Driver.GenerateManagementToken(pan, reg, sgc, ti, krn, 255,
                 mgmtType, tid, value);
 
             if (token != null)

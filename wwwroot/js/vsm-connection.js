@@ -189,8 +189,7 @@ async function runSingleTest(testId, utilityType, ea) {
 }
 
 // Generate single token via SignalR
-async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate, ea) {
-    debugger;
+async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDate, ea, sgc, krn) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
@@ -198,14 +197,15 @@ async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDa
 
     try {
         await window.vsmConnection.hub.invoke("GenerateToken",
-            pan, reg, ti, creditType, amount, issueDate, baseDate, ea || 7);
+            pan, reg, ti, creditType, amount, issueDate, baseDate, ea || 7,
+            sgc || "201457", krn || "1");
     } catch (err) {
         console.error("[VSM] GenerateToken error:", err);
     }
 }
 
 // Generate management token via SignalR
-async function generateManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, ea) {
+async function generateManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, ea, sgc, krn) {
     if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
         alert("VSM not connected");
         return;
@@ -213,7 +213,8 @@ async function generateManagementToken(pan, reg, ti, mgmtType, value, issueDate,
 
     try {
         await window.vsmConnection.hub.invoke("GenerateManagementToken",
-            pan, reg, ti, mgmtType, value, issueDate, baseDate, ea || 7);
+            pan, reg, ti, mgmtType, value, issueDate, baseDate, ea || 7,
+            sgc || "201457", krn || "1");
     } catch (err) {
         console.error("[VSM] GenerateManagementToken error:", err);
     }

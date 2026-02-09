@@ -18,9 +18,37 @@ namespace STSCompliancePOS.Services
         private const int MAX_RETRIES = 3;
         private const int RSP_BUF_SIZE = 1024;
 
-        // EA and TCT defaults for compliance testing (EA07=STA/DES, TCT=1=numeric)
-        public int EA { get; set; } = 7;
+        // EA and TCT defaults for compliance testing
+        // EA07 → TCT=1 (DES/64-bit), EA11 → TCT=2 (AES/128-bit)
+        private int _ea = 7;
+        public int EA
+        {
+            get => _ea;
+            set { _ea = value; TCT = value == 11 ? 2 : 1; }
+        }
         public int TCT { get; set; } = 1;
+
+        /// <summary>
+        /// Maps EA to the value sent in SM?V* commands.
+        /// Standard: EA07=7, EA11=11.
+        /// </summary>
+        private int EAForCommand => EA;
+
+        /// <summary>
+        /// Encode TID as H field (natural length, even hex digits).
+        /// </summary>
+        private string PtvdHTid(uint tid)
+        {
+            return PtvdH(tid);
+        }
+
+        /// <summary>
+        /// Encode a 16-bit value as H field, always padded to 2 bytes.
+        /// </summary>
+        private static string PtvdH16(ushort value)
+        {
+            return $"H{value:X4}~";
+        }
 
         public string LastError { get; private set; } = "";
         public string LastTx { get; private set; } = "";
@@ -134,6 +162,14 @@ namespace STSCompliancePOS.Services
         }
 
         // =================================================================
+        //  Raw command — send any SM? command and return full response
+        // =================================================================
+        public string SendRawCommand(string header, string payload)
+        {
+            return SendCommand(header, payload);
+        }
+
+        // =================================================================
         //  SM?GA — Get VK Attributes (verify register exists)
         // =================================================================
         public string GetKeyStatus(string reg)
@@ -152,8 +188,7 @@ namespace STSCompliancePOS.Services
         //  Response fields:
         //    P<TokenHex17>~  P<TokenDec20>~
         //
-        //  NOTE: sgc, krn, ken are VK register attributes in STS6.
-        //  Kept in method signature for ComplianceTests.cs compatibility.
+        //  SGC, KRN, KEN are VK register attributes — read from register by HSM.
         // =================================================================
         public string GenerateCreditToken(string pan, string reg, string sgc,
             string ti, char krn, int ken, string creditType, uint tid, ushort stsAmount)
@@ -165,11 +200,11 @@ namespace STSCompliancePOS.Services
             string payload = PtvdN(regNum) +
                              PtvdP(pan) +
                              PtvdN(tiNum) +
-                             PtvdN(EA) +
+                             PtvdN(EAForCommand) +
                              PtvdN(TCT) +
                              PtvdN(subClass) +
-                             PtvdH(stsAmount) +
-                             PtvdH(tid);
+                             PtvdH16(stsAmount) +
+                             PtvdHTid(tid);
 
             string response = SendCommand("SM?VC", payload);
             if (response == null) return null;
@@ -193,6 +228,8 @@ namespace STSCompliancePOS.Services
         //  Response fields:
         //    P<TokenHex17>~  P<TokenDec20>~
         //
+        //  SGC, KRN, KEN are VK register attributes — read from register by HSM.
+        //
         //  SubClass mapping (Table 7):
         //    0=SetMaxPowerLimit, 1=ClearCredit, 2=SetTariffRate,
         //    5=ClearTamper, 6=SetMPUL, 7=SetWMF, 10=Extended
@@ -207,11 +244,11 @@ namespace STSCompliancePOS.Services
             string payload = PtvdN(regNum) +
                              PtvdP(pan) +
                              PtvdN(tiNum) +
-                             PtvdN(EA) +
+                             PtvdN(EAForCommand) +
                              PtvdN(TCT) +
                              PtvdN(subClass) +
-                             PtvdH(amountOrReg) +
-                             PtvdH(tid);
+                             PtvdH16(amountOrReg) +
+                             PtvdHTid(tid);
 
             string response = SendCommand("SM?VM", payload);
             if (response == null) return null;
@@ -255,7 +292,7 @@ namespace STSCompliancePOS.Services
                              PtvdN(newRegNum) +
                              PtvdP(pan) +
                              PtvdN(tiOldNum) +
-                             PtvdN(EA) +
+                             PtvdN(EAForCommand) +
                              PtvdN(TCT) +
                              PtvdN(tiNewNum) +
                              PtvdN(numTokens);
@@ -297,7 +334,7 @@ namespace STSCompliancePOS.Services
                              PtvdN(newRegNum) +
                              PtvdP(pan) +
                              PtvdN(tiOldNum) +
-                             PtvdN(EA) +
+                             PtvdN(EAForCommand) +
                              PtvdN(TCT) +
                              PtvdN(tiNewNum) +
                              PtvdN(4); // quad for EA11
@@ -340,7 +377,7 @@ namespace STSCompliancePOS.Services
                              PtvdN(newRegNum) +
                              PtvdP(pan) +
                              PtvdN(tiOldNum) +
-                             PtvdN(EA) +
+                             PtvdN(EAForCommand) +
                              PtvdN(TCT) +
                              PtvdN(tiNewNum) +
                              PtvdN(3); // triplet
@@ -376,7 +413,7 @@ namespace STSCompliancePOS.Services
             string payload = PtvdN(regNum) +
                              PtvdP(pan) +
                              PtvdN(tiNum) +
-                             PtvdN(EA) +
+                             PtvdN(EAForCommand) +
                              PtvdN(TCT) +
                              PtvdP(tokenHex17);
 

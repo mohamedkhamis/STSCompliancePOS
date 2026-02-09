@@ -55,6 +55,23 @@ public class TestHub(
         await Clients.All.SendAsync("ReceiveConnectionStatus", status);
         await Clients.Caller.SendAsync("ReceiveProgress",
             success ? $"Connected to {portName}" : $"Connection failed: {vsm.LastError}");
+
+        // Diagnostic: query key register 01 attributes on connect
+        if (success && vsm.Driver != null)
+        {
+            try
+            {
+                string gaResp = vsm.Driver.GetKeyStatus("01");
+                Console.WriteLine($"[DIAG] SM?GA reg=01 TX: {vsm.Driver.LastTx}");
+                Console.WriteLine($"[DIAG] SM?GA reg=01 RX: {vsm.Driver.LastRx}");
+                Console.WriteLine($"[DIAG] SM?GA reg=01 payload: {gaResp}");
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[DIAG] Register 01: {gaResp}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DIAG] SM?GA error: {ex.Message}");
+            }
+        }
     }
 
     public async Task Disconnect()
@@ -249,7 +266,8 @@ public class TestHub(
 
     // Generate single token
     public async Task GenerateToken(string pan, string reg, string ti, string creditType,
-        decimal amount, string issueDateStr, int baseDate, int ea = 7)
+        decimal amount, string issueDateStr, int baseDate, int ea = 7,
+        string sgc = "201457", string krn = "1")
     {
         if (!vsm.IsConnected)
         {
@@ -259,27 +277,38 @@ public class TestHub(
 
         try
         {
-            await Clients.Caller.SendAsync("ReceiveProgress", $"Generating {creditType} token (EA{(ea == 11 ? "11" : "07")})...");
+            string eaLabel = ea == 11 ? "EA11" : "EA07";
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] CreditToken: PAN={pan} REG={reg} TI={ti} CT={creditType} Amount={amount} Date=\"{issueDateStr}\" BD={baseDate}");
 
             // Set EA on driver before generating token
             if (vsm.Driver != null) vsm.Driver.EA = ea;
 
             DateTime issueDate = DateTime.Parse(issueDateStr);
 
+            // Log parsed date components for TID debugging
+            uint amountUnits = (uint)(amount * 10);
+            ushort stsAmt = StsHelper.EncodeAmount(amountUnits);
+            uint debugTid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
+                issueDate.Hour, issueDate.Minute, baseDate);
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] Parsed: {issueDate:yyyy-MM-dd HH:mm} → TID={debugTid} (0x{debugTid:X}), Amount={amountUnits}→STS=0x{stsAmt:X4}");
+
+            char krnChar = string.IsNullOrEmpty(krn) ? '1' : krn[0];
             (string? token, string? error) result;
             if (ea == 11)
-                result = await testsEA11.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
+                result = await testsEA11.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate, sgc, krnChar);
             else
-                result = await testsEA07.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
+                result = await testsEA07.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate, sgc, krnChar);
 
             if (result.token != null)
             {
-                await Clients.Caller.SendAsync("ReceiveProgress", $"Token generated: {result.token}");
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] Token: {result.token}");
                 await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
             }
             else
             {
-                await Clients.Caller.SendAsync("ReceiveProgress", $"Token error: {result.error}");
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] ERROR: {result.error}");
                 await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
             }
         }
@@ -292,7 +321,8 @@ public class TestHub(
 
     // Generate management token (ClearCredit, SetMaxPowerLimit, ClearTamper, SetMPUL)
     public async Task GenerateManagementToken(string pan, string reg, string ti, string mgmtType,
-        ushort value, string issueDateStr, int baseDate, int ea = 7)
+        ushort value, string issueDateStr, int baseDate, int ea = 7,
+        string sgc = "201457", string krn = "1")
     {
         if (!vsm.IsConnected)
         {
@@ -302,27 +332,36 @@ public class TestHub(
 
         try
         {
-            await Clients.Caller.SendAsync("ReceiveProgress", $"Generating {mgmtType} management token (EA{(ea == 11 ? "11" : "07")})...");
+            string eaLabel = ea == 11 ? "EA11" : "EA07";
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] MgmtToken: PAN={pan} REG={reg} TI={ti} Type={mgmtType} Value={value} (0x{value:X4}) Date=\"{issueDateStr}\" BD={baseDate}");
 
             // Set EA on driver before generating token
             if (vsm.Driver != null) vsm.Driver.EA = ea;
 
             DateTime issueDate = DateTime.Parse(issueDateStr);
 
+            // Log parsed date components for TID debugging
+            uint debugTid = StsHelper.CalcTid(issueDate.Year, issueDate.Month, issueDate.Day,
+                issueDate.Hour, issueDate.Minute, baseDate);
+            await Clients.Caller.SendAsync("ReceiveProgress",
+                $"[{eaLabel}] Parsed: {issueDate:yyyy-MM-dd HH:mm} → TID={debugTid} (0x{debugTid:X})");
+
+            char krnChar = string.IsNullOrEmpty(krn) ? '1' : krn[0];
             (string? token, string? error) result;
             if (ea == 11)
-                result = await testsEA11.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+                result = await testsEA11.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, sgc, krnChar);
             else
-                result = await testsEA07.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+                result = await testsEA07.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate, sgc, krnChar);
 
             if (result.token != null)
             {
-                await Clients.Caller.SendAsync("ReceiveProgress", $"Token generated: {result.token}");
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] Token: {result.token}");
                 await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
             }
             else
             {
-                await Clients.Caller.SendAsync("ReceiveProgress", $"Token error: {result.error}");
+                await Clients.Caller.SendAsync("ReceiveProgress", $"[{eaLabel}] ERROR: {result.error}");
                 await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
             }
         }
