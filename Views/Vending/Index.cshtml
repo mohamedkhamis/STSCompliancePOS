@@ -387,7 +387,7 @@
 
     async function vendGenerateToken() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected. Go to Connection page first.');
+            showWarnToast('VSM Not Connected', 'Go to Connection page first.');
             return;
         }
 
@@ -500,13 +500,6 @@
                         log.scrollTop = log.scrollHeight;
                     }
 
-                    // Browser alert for PASS/FAIL
-                    if (passed) {
-                        alert('PASS: Token matches expected value!\n\nTest: ' + tvLabel + '\nToken: ' + result.token);
-                    } else {
-                        alert('FAIL: Token does not match!\n\nTest: ' + tvLabel + '\nExpected: ' + expectedRaw + '\nGot: ' + result.token);
-                    }
-
                     // Log to SQLite via SignalR
                     const logEa = parseInt(document.getElementById('vend-ea').value);
                     const logPan = document.getElementById('vend-pan').value;
@@ -601,6 +594,36 @@
         });
 
         // Auto-dismiss after 5 seconds
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => toast.style.display = 'none', 300);
+        }, 5000);
+    }
+
+    function showWarnToast(title, detail) {
+        const toast = document.getElementById('toast-notification');
+        const icon = document.getElementById('toast-icon');
+        const titleEl = document.getElementById('toast-title');
+        const detailEl = document.getElementById('toast-detail');
+
+        icon.textContent = '\u26A0\uFE0F';
+        icon.style.color = 'var(--warn)';
+        titleEl.textContent = title;
+        titleEl.style.color = 'var(--warn)';
+        detailEl.textContent = detail;
+        detailEl.style.color = 'rgba(245,158,11,0.8)';
+
+        toast.style.display = 'block';
+        toast.style.background = 'rgba(245,158,11,0.12)';
+        toast.style.border = '2px solid rgba(245,158,11,0.5)';
+
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
+
         clearTimeout(window._toastTimer);
         window._toastTimer = setTimeout(() => {
             toast.style.opacity = '0';

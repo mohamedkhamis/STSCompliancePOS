@@ -371,7 +371,7 @@
             await disconnectVSM();
         } else {
             if (!port) {
-                alert('Please select a COM port');
+                showWarnToast('No Port Selected', 'Please select a COM port.');
                 return;
             }
             await connectVSM(port);
@@ -381,7 +381,7 @@
     // Quick token test
     async function quickTokenTest() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected');
+            showWarnToast('VSM Not Connected', 'Please connect to VSM first.');
             return;
         }
 
@@ -437,13 +437,6 @@
                     logCt, logAmount, null, null, logDate, logBd,
                     expectedRaw, result.token, passed);
 
-                // Alert
-                if (passed) {
-                    alert('PASS: Token matches expected value!\n\nToken: ' + result.token);
-                } else {
-                    alert('FAIL: Token does not match!\n\nExpected: ' + expectedRaw + '\nGot: ' + result.token);
-                }
-
                 // Toast
                 showConnToast(passed, passed ? 'TOKEN MATCH' : 'TOKEN MISMATCH', result.token);
             } else {
@@ -461,7 +454,7 @@
     // Run full suite
     async function runFullSuite() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected. Please connect first.');
+            showWarnToast('VSM Not Connected', 'Please connect first.');
             return;
         }
 
@@ -487,11 +480,11 @@
 
     async function runFullPOS() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected. Please connect first.');
+            showWarnToast('VSM Not Connected', 'Please connect first.');
             return;
         }
         if (posTestRunning) {
-            alert('POS tests already running. Please wait.');
+            showWarnToast('Tests In Progress', 'POS tests already running. Please wait.');
             return;
         }
 
@@ -642,6 +635,26 @@
         toast.style.opacity = '1';
         toast.style.transform = 'translateY(0)';
         document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
+    function showWarnToast(title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = 'rgba(245,158,11,0.12)';
+        toast.style.border = '2px solid rgba(245,158,11,0.5)';
+        toast.style.color = 'var(--warn)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = '\u26A0\uFE0F';
         document.getElementById('toast-title').textContent = title;
         document.getElementById('toast-detail').textContent = detail;
 

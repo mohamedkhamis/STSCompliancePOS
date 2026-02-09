@@ -180,7 +180,7 @@
 <script>
     async function kcGenerate() {
         if (!window.vsmConnection.isConnected) {
-            alert('VSM not connected. Go to Connection page first.');
+            showWarnToast('VSM Not Connected', 'Go to Connection page first.');
             return;
         }
 
@@ -291,6 +291,25 @@
         toast.style.opacity = '1';
         toast.style.transform = 'translateY(0)';
         document.getElementById('toast-icon').textContent = success ? '\u2705' : '\u274C';
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-detail').textContent = detail;
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 5000);
+    }
+
+    function showWarnToast(title, detail) {
+        const toast = document.getElementById('toast-notification');
+        toast.style.display = 'block';
+        toast.style.background = 'rgba(245,158,11,0.12)';
+        toast.style.border = '2px solid rgba(245,158,11,0.5)';
+        toast.style.color = 'var(--warn)';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        document.getElementById('toast-icon').textContent = '\u26A0\uFE0F';
         document.getElementById('toast-title').textContent = title;
         document.getElementById('toast-detail').textContent = detail;
 
