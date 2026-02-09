@@ -4,6 +4,7 @@
 // =============================================================================
 
 using Microsoft.AspNetCore.SignalR;
+using STSCompliancePOS.Controllers;
 using STSCompliancePOS.Services;
 
 namespace STSCompliancePOS.Hubs;
@@ -99,6 +100,50 @@ public class TestHub(
 
         resultsStore.StoreSuiteResult(result);
         await Clients.Caller.SendAsync("ReceiveTestComplete", result);
+    }
+
+    // Run all 160 POS tests (EA07 + EA11) with real-time progress
+    public async Task RunFullPOS(string utilityType, bool includeCurrency,
+        bool includeKeychange, bool includeExtended)
+    {
+        if (!vsm.IsConnected)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", "Error: VSM not connected");
+            return;
+        }
+
+        await Clients.Caller.SendAsync("ReceiveProgress", "═══ Running ALL 160 POS Tests (EA07 + EA11) ═══");
+
+        // Run EA07 suite (tests 0001-0080)
+        await Clients.Caller.SendAsync("ReceiveProgress", "Starting EA07 suite (80 tests)...");
+        if (vsm.Driver != null) vsm.Driver.EA = 7;
+        var ea07Result = await testsEA07.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
+            async msg => await Clients.Caller.SendAsync("ReceiveProgress", $"[EA07] {msg}"));
+
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            $"═══ EA07 Done: {ea07Result.TotalPassed}/{ea07Result.TotalSteps} passed ═══");
+
+        // Run EA11 suite (tests 0081-0160)
+        await Clients.Caller.SendAsync("ReceiveProgress", "Starting EA11 suite (80 tests)...");
+        if (vsm.Driver != null) vsm.Driver.EA = 11;
+        var ea11Result = await testsEA11.RunFullSuite(utilityType, includeCurrency, includeKeychange, includeExtended,
+            async msg => await Clients.Caller.SendAsync("ReceiveProgress", $"[EA11] {msg}"));
+
+        await Clients.Caller.SendAsync("ReceiveProgress",
+            $"═══ EA11 Done: {ea11Result.TotalPassed}/{ea11Result.TotalSteps} passed ═══");
+
+        // Store results
+        resultsStore.StoreSuiteResult(ea07Result);
+
+        var posResult = new POSFullTestResult
+        {
+            EA07Result = ea07Result,
+            EA11Result = ea11Result,
+            StartTime = ea07Result.StartTime,
+            EndTime = DateTime.UtcNow
+        };
+
+        await Clients.Caller.SendAsync("ReceiveFullPOSComplete", posResult);
     }
 
     // Run individual test

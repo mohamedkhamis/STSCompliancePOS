@@ -309,7 +309,7 @@
         <button class="btn btn-primary" onclick="runFullSuite()">
             🧪 Run Compliance Suite
         </button>
-        <button class="btn btn-primary" style="background: var(--warn);" onclick="runFullPOS()">
+        <button class="btn btn-primary" style="background: var(--warn);" id="run-pos-btn" onclick="runFullPOS()">
             📋 Run All 160 POS Tests
         </button>
         <button class="btn btn-secondary" onclick="exportResults('csv')">
@@ -322,7 +322,32 @@
             🖨️ Print Report
         </button>
     </div>
+
+    <!-- POS Test Progress Overlay -->
+    <div id="pos-progress-overlay" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-surface); border: 1px solid var(--card-border); border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <div id="pos-spinner" style="width: 24px; height: 24px; border: 3px solid var(--card-border); border-top: 3px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <span id="pos-progress-title" style="font-weight: bold; color: var(--accent); font-size: 14px;">Running All 160 POS Tests...</span>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">
+                <span id="pos-progress-label">Initializing...</span>
+                <span id="pos-progress-count"></span>
+            </div>
+            <div style="height: 6px; background: var(--card-border); border-radius: 3px; overflow: hidden;">
+                <div id="pos-progress-bar" style="height: 100%; background: var(--accent); border-radius: 3px; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+        <div id="pos-live-log" style="height: 200px; overflow-y: auto; background: #000; border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);"></div>
+    </div>
 </div>
+
+<style>
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
 
 @section Scripts {
 <script>
@@ -417,10 +442,17 @@
         await runFullTestSuite(utility, currency, keychange, extended, ea);
     }
 
-    // Run all 160 POS tests (EA07 + EA11)
+    // Run all 160 POS tests (EA07 + EA11) via SignalR with live progress
+    let posTestRunning = false;
+    let posStepCount = 0;
+
     async function runFullPOS() {
         if (!window.vsmConnection.isConnected) {
             alert('VSM not connected. Please connect first.');
+            return;
+        }
+        if (posTestRunning) {
+            alert('POS tests already running. Please wait.');
             return;
         }
 
@@ -430,39 +462,136 @@
         const extended = document.getElementById('suite-extended').checked;
         const log = document.getElementById('progress-log');
 
+        // Show overlay & disable button
+        posTestRunning = true;
+        posStepCount = 0;
+        const overlay = document.getElementById('pos-progress-overlay');
+        const liveLog = document.getElementById('pos-live-log');
+        const progressBar = document.getElementById('pos-progress-bar');
+        const progressLabel = document.getElementById('pos-progress-label');
+        const progressCount = document.getElementById('pos-progress-count');
+        const progressTitle = document.getElementById('pos-progress-title');
+        const spinner = document.getElementById('pos-spinner');
+        const btn = document.getElementById('run-pos-btn');
+
+        overlay.style.display = 'block';
+        liveLog.innerHTML = '';
+        progressBar.style.width = '0%';
+        progressBar.style.background = 'var(--accent)';
+        progressLabel.textContent = 'Initializing...';
+        progressCount.textContent = '0 / 160';
+        progressTitle.textContent = 'Running All 160 POS Tests...';
+        progressTitle.style.color = 'var(--accent)';
+        spinner.style.animation = 'spin 1s linear infinite';
+        spinner.style.borderTopColor = 'var(--accent)';
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+
         log.innerHTML += '<div class="log-entry" style="color: var(--accent);">═══ Running ALL 160 POS Tests (EA07 + EA11) ═══</div>';
+        log.scrollTop = log.scrollHeight;
+
+        // Hook into ReceiveProgress to update live log
+        const originalOnProgress = window._posProgressHandler;
+        window._posProgressHandler = function(message) {
+            // Update live log
+            liveLog.innerHTML += `<div style="margin-bottom: 2px;">${formatTime()} ${message}</div>`;
+            liveLog.scrollTop = liveLog.scrollHeight;
+
+            // Count completed steps (look for PASS/FAIL patterns)
+            if (message.includes('PASS') || message.includes('FAIL') || message.includes('passed') || message.includes('Step')) {
+                posStepCount++;
+                const pct = Math.min((posStepCount / 160) * 100, 100);
+                progressBar.style.width = pct + '%';
+                progressCount.textContent = `${Math.min(posStepCount, 160)} / 160`;
+            }
+
+            // Update label based on phase
+            if (message.includes('[EA07]')) {
+                progressLabel.textContent = 'Running EA07 tests...';
+            } else if (message.includes('[EA11]')) {
+                progressLabel.textContent = 'Running EA11 tests...';
+            } else if (message.includes('EA07 Done')) {
+                progressLabel.textContent = 'EA07 complete, starting EA11...';
+            }
+        };
+
+        // Intercept SignalR ReceiveProgress
+        const hub = window.vsmConnection.hub;
+        hub.off("ReceiveProgress");
+        hub.on("ReceiveProgress", (message) => {
+            console.log("[VSM]", message);
+            // Update activity log
+            const mainLog = document.getElementById("progress-log");
+            if (mainLog) {
+                mainLog.innerHTML += `<div class="log-entry">${formatTime()} ${message}</div>`;
+                mainLog.scrollTop = mainLog.scrollHeight;
+            }
+            // Update overlay
+            if (window._posProgressHandler) window._posProgressHandler(message);
+        });
 
         try {
-            const response = await fetch('/api/vsm/run-full-pos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    utilityType: utility,
-                    includeCurrency: currency,
-                    includeKeychange: keychange,
-                    includeExtended: extended
-                })
-            });
-
-            const result = await response.json();
-            if (response.ok) {
-                const color = result.allPassed ? 'var(--success)' : 'var(--error)';
-                log.innerHTML += `<div class="log-entry" style="color: ${color}">
-                    ═══ EA07: ${result.ea07Result.totalPassed}/${result.ea07Result.totalSteps} passed ═══
-                </div>`;
-                log.innerHTML += `<div class="log-entry" style="color: ${color}">
-                    ═══ EA11: ${result.ea11Result.totalPassed}/${result.ea11Result.totalSteps} passed ═══
-                </div>`;
-                log.innerHTML += `<div class="log-entry" style="color: ${color}; font-weight: bold;">
-                    ═══ TOTAL: ${result.totalPassed}/${result.totalTests} passed ═══
-                </div>`;
-            } else {
-                log.innerHTML += `<div class="log-entry" style="color: var(--error)">Error: ${result.error || 'Unknown'}</div>`;
-            }
+            await runFullPOSTests(utility, currency, keychange, extended);
         } catch (e) {
             log.innerHTML += `<div class="log-entry" style="color: var(--error)">Error: ${e.message}</div>`;
+            finishPOSOverlay(false, e.message);
         }
+    }
+
+    // Handle full POS completion
+    window.onFullPOSComplete = function(result) {
+        const allPassed = result.allPassed;
+        const log = document.getElementById('progress-log');
+        const color = allPassed ? 'var(--success)' : 'var(--error)';
+
+        log.innerHTML += `<div class="log-entry" style="color: ${color}">═══ EA07: ${result.ea07Result.totalPassed}/${result.ea07Result.totalSteps} passed ═══</div>`;
+        log.innerHTML += `<div class="log-entry" style="color: ${color}">═══ EA11: ${result.ea11Result.totalPassed}/${result.ea11Result.totalSteps} passed ═══</div>`;
+        log.innerHTML += `<div class="log-entry" style="color: ${color}; font-weight: bold;">═══ TOTAL: ${result.totalPassed}/${result.totalTests} passed ═══</div>`;
         log.scrollTop = log.scrollHeight;
+
+        finishPOSOverlay(allPassed,
+            `${result.totalPassed}/${result.totalTests} passed (EA07: ${result.ea07Result.totalPassed}/${result.ea07Result.totalSteps}, EA11: ${result.ea11Result.totalPassed}/${result.ea11Result.totalSteps})`);
+
+        if (confirm(`Test complete: ${result.totalPassed}/${result.totalTests} passed.\n\nExport results?`)) {
+            exportResults('csv');
+        }
+    };
+
+    function finishPOSOverlay(success, message) {
+        const progressBar = document.getElementById('pos-progress-bar');
+        const progressLabel = document.getElementById('pos-progress-label');
+        const progressTitle = document.getElementById('pos-progress-title');
+        const progressCount = document.getElementById('pos-progress-count');
+        const spinner = document.getElementById('pos-spinner');
+        const btn = document.getElementById('run-pos-btn');
+
+        // Stop spinner — remove animation and hide
+        spinner.style.animation = 'none';
+        spinner.style.borderTopColor = success ? 'var(--success)' : 'var(--error)';
+
+        progressBar.style.width = '100%';
+        progressBar.style.background = success ? 'var(--success)' : 'var(--error)';
+        progressLabel.textContent = message;
+        progressCount.textContent = 'Done';
+        progressTitle.textContent = success ? 'All Tests Passed!' : 'Tests Complete (with failures)';
+        progressTitle.style.color = success ? 'var(--success)' : 'var(--error)';
+
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        posTestRunning = false;
+
+        // Restore normal SignalR handler
+        const hub = window.vsmConnection.hub;
+        hub.off("ReceiveProgress");
+        hub.on("ReceiveProgress", (msg) => {
+            console.log("[VSM]", msg);
+            const log = document.getElementById("progress-log");
+            if (log) {
+                log.innerHTML += `<div class="log-entry">${formatTime()} ${msg}</div>`;
+                log.scrollTop = log.scrollHeight;
+            }
+        });
+        window._posProgressHandler = null;
     }
 
     // Handle test complete

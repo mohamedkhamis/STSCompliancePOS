@@ -56,6 +56,11 @@ async function initSignalR() {
         if (window.onTokenReceived) window.onTokenReceived(result);
     });
 
+    connection.on("ReceiveFullPOSComplete", (result) => {
+        console.log("[VSM] Full POS complete:", result);
+        if (window.onFullPOSComplete) window.onFullPOSComplete(result);
+    });
+
     try {
         await connection.start();
         console.log("[VSM] SignalR connected");
@@ -190,6 +195,21 @@ async function generateToken(pan, reg, ti, creditType, amount, issueDate, baseDa
             pan, reg, ti, creditType, amount, issueDate, baseDate, ea || 7);
     } catch (err) {
         console.error("[VSM] GenerateToken error:", err);
+    }
+}
+
+// Run all 160 POS tests via SignalR
+async function runFullPOSTests(utilityType, includeCurrency, includeKeychange, includeExtended) {
+    if (!window.vsmConnection.hub || !window.vsmConnection.isConnected) {
+        alert("VSM not connected");
+        return;
+    }
+
+    try {
+        await window.vsmConnection.hub.invoke("RunFullPOS",
+            utilityType, includeCurrency, includeKeychange, includeExtended);
+    } catch (err) {
+        console.error("[VSM] RunFullPOS error:", err);
     }
 }
 
