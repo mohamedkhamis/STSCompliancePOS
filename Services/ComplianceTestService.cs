@@ -576,9 +576,9 @@ public class ComplianceTestService(VSMConnectionService vsm)
             uint tid = StsHelper.CalcTid(y, m, d, h, mn, baseDate);
             ushort stsAmt = StsHelper.EncodeAmount(amount);
 
-
+            
             // Diagnostic: log parameters for debugging
-            Console.WriteLine($"[CREDIT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={creditType} Amount={amount}→STS={stsAmt} (0x{stsAmt:X4}) TID={tid} (0x{tid:X})");
+            Console.WriteLine($"[CREDIT] {desc}: PAN={pan} REG={reg} TI={ti} EA={vsm.Driver.EA} TCT={vsm.Driver.TCT} SubClass={creditType} Amount={amount} (STS=0x{stsAmt:X4}) TID={tid} (0x{tid:X})");
 
             string? token = vsm.Driver.GenerateCreditToken(pan, reg, sgc, ti, krn, 255,
                 creditType, tid, stsAmt);
