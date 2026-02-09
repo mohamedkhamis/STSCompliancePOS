@@ -3,8 +3,6 @@
 //  TID calculation (configurable base date), STS amount encoding, Luhn check
 // =============================================================================
 
-using System;
-
 namespace STSCompliancePOS.Services
 {
     public static class StsHelper
@@ -152,14 +150,14 @@ namespace STSCompliancePOS.Services
         // =====================================================================
         //  Token formatting: "12345678901234567890" → "1234 5678 9012 3456 7890"
         // =====================================================================
-        public static string FormatToken(string token)
+        public static string FormatToken(string? token)
         {
             if (token == null || token.Length != 20) return token ?? "(null)";
             return $"{token.Substring(0, 4)} {token.Substring(4, 4)} {token.Substring(8, 4)} {token.Substring(12, 4)} {token.Substring(16, 4)}";
         }
 
         // Normalize expected token: remove spaces
-        public static string NormalizeToken(string token)
+        public static string NormalizeToken(string? token)
         {
             return token?.Replace(" ", "") ?? "";
         }

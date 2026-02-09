@@ -18,7 +18,7 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
     public const string REG_BD2035 = "06";    // VUDK, SGC=201457, KRN=6, BD=2035
     public const string REG_EXPIRED = "07";   // VUDK, SGC=201460, KRN=7, KEN=85
     public const string REG_SWAPPED = "09";   // Swapped VUDK for CTSA15
-    public const string REG_CTSA16_NEW = "10"; // For CTSA16 step 4 new key
+    public const string REG_CTSA16_NEW = "08"; // For CTSA16 step 4 new key (SGC=201461, KRN=8, KEN=255)
 
     // =========================================================================
     //  Run Full EA11 Test Suite — all 80 tests per POS report
@@ -176,7 +176,7 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
     // =========================================================================
     public async Task<TestRunResult> RunCTSA03(Action<string>? progress = null)
     {
-        return await RunCTSA03(PAN_11, REG_MAIN, "01", "0", 1, "2024-03-28 09:01", 2014,
+        return await RunCTSA03(PAN_11, REG_MAIN, "01", "0", StsHelper.EncodeAmount(1000), "2024-03-28 09:01", 2014,
             "3449 4889 4753 7886 6499", progress);
     }
 
@@ -286,7 +286,7 @@ public class ComplianceTestServiceEA11(VSMConnectionService vsm)
 
         // MPUL=10W, Date=2024-03-28 10:20
         result.Steps.Add(await RunManagementStep("SetMPUL 10W",
-            PAN_11, REG_MAIN, "01", "6", "2024-03-28 10:20", 100, 2014,
+            PAN_11, REG_MAIN, "01", "6", "2024-03-28 10:20", StsHelper.EncodeAmount(10), 2014,
             "3606 1906 1324 6121 0546"));
 
         result.EndTime = DateTime.UtcNow;

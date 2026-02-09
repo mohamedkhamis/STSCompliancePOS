@@ -203,7 +203,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
     // =========================================================================
     public async Task<TestRunResult> RunCTSA03(Action<string>? progress = null)
     {
-        return await RunCTSA03(PAN_11, REG_MAIN, "01", "0", 10, "2024-03-28 09:01", 2014,
+        return await RunCTSA03(PAN_11, REG_MAIN, "01", "0", StsHelper.EncodeAmount(1000), "2024-03-28 09:01", 2014,
             "6896 1683 0643 2623 4122", progress);
     }
 
@@ -293,7 +293,7 @@ public class ComplianceTestService(VSMConnectionService vsm)
         progress?.Invoke("Running CTSA07 — SetMaxPhasePowerUnbalance...");
 
         result.Steps.Add(await RunManagementStep("SetMPUL 10W",
-            PAN_11, REG_MAIN, "01", "6", "2025-03-28 10:20", 100, 2014,
+            PAN_11, REG_MAIN, "01", "6", "2025-03-28 10:20", StsHelper.EncodeAmount(10), 2014,
             "3171 2008 4993 5179 7283"));
 
         result.EndTime = DateTime.UtcNow;
