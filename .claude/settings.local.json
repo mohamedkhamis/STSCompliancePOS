@@ -9,7 +9,15 @@
       "Bash(ping:*)",
       "Bash(dir:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd RunFullPOS SignalR method with live progress UI for all 160 tests\n\nReplaces REST API call with SignalR invocation for running combined\nEA07+EA11 suites, adding real-time progress overlay with live log,\nprogress bar, and step counter.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd RunFullPOS SignalR method with live progress UI for all 160 tests\n\nReplaces REST API call with SignalR invocation for running combined\nEA07+EA11 suites, adding real-time progress overlay with live log,\nprogress bar, and step counter.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(del \"D:\\\\STS\\\\STSCompliancePOS\\\\STSCompliancePOS\\\\Views\\\\Vending\\\\Result.cshtml\")",
+      "Bash(del \"D:\\\\STS\\\\STSCompliancePOS\\\\STSCompliancePOS\\\\Views\\\\KeyChange\\\\Result.cshtml\")",
+      "Bash(taskkill:*)",
+      "Bash(powershell -Command:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(powershell -NoProfile -Command \"Invoke-WebRequest -Uri http://localhost:5000/Vending -UseBasicParsing | Select-Object -ExpandProperty Content | Select-String ''generateManagementToken'',''vend-category'',''vsm-connection'',''onTokenReceived''\")",
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
