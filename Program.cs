@@ -19,6 +19,7 @@ builder.Services.AddSingleton<TestResultsStore>();
 builder.Services.AddScoped<ComplianceTestService>();
 builder.Services.AddScoped<ComplianceTestServiceEA11>();
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddSingleton<TestLogService>();
 
 var app = builder.Build();
 

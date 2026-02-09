@@ -248,6 +248,20 @@ async function runFullPOSTests(utilityType, includeCurrency, includeKeychange, i
     }
 }
 
+// Log token test result to SQLite via SignalR
+async function logTokenTest(testVectorId, ea, category, pan, reg, ti, creditType, amount,
+    mgmtType, mgmtValue, issueDate, baseDate, expectedToken, generatedToken, passed) {
+    if (!window.vsmConnection.hub) return;
+
+    try {
+        await window.vsmConnection.hub.invoke("LogTokenTest",
+            testVectorId, ea, category, pan, reg, ti, creditType, amount,
+            mgmtType, mgmtValue, issueDate, baseDate, expectedToken, generatedToken, passed);
+    } catch (err) {
+        console.error("[VSM] LogTokenTest error:", err);
+    }
+}
+
 // REST API fallback functions
 async function fetchConnectionStatus() {
     try {

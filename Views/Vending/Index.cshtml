@@ -500,6 +500,38 @@
                         log.scrollTop = log.scrollHeight;
                     }
 
+                    // Browser alert for PASS/FAIL
+                    if (passed) {
+                        alert('PASS: Token matches expected value!\n\nTest: ' + tvLabel + '\nToken: ' + result.token);
+                    } else {
+                        alert('FAIL: Token does not match!\n\nTest: ' + tvLabel + '\nExpected: ' + expectedRaw + '\nGot: ' + result.token);
+                    }
+
+                    // Log to SQLite via SignalR
+                    const logEa = parseInt(document.getElementById('vend-ea').value);
+                    const logPan = document.getElementById('vend-pan').value;
+                    const logReg = document.getElementById('vend-reg').value;
+                    const logTi = document.getElementById('vend-ti').value;
+                    const logDate = document.getElementById('vend-date').value;
+                    const logBd = parseInt(document.getElementById('vend-bd').value);
+                    const logCat = document.getElementById('vend-category').value;
+                    const logTvId = tvSelect && tvSelect.selectedIndex > 0
+                        ? testVectors[document.getElementById('tv-ea').value]?.[tvSelect.value]?.id || null
+                        : null;
+
+                    let logCt = null, logAmount = null, logMgmtType = null, logMgmtValue = null;
+                    if (logCat === 'credit') {
+                        logCt = document.getElementById('vend-ct').value;
+                        logAmount = parseFloat(document.getElementById('vend-amount').value);
+                    } else {
+                        logMgmtType = document.getElementById('vend-mgmt-type').value;
+                        logMgmtValue = parseInt(document.getElementById('vend-mgmt-value').value);
+                    }
+
+                    logTokenTest(logTvId, logEa, logCat, logPan, logReg, logTi,
+                        logCt, logAmount, logMgmtType, logMgmtValue, logDate, logBd,
+                        expectedRaw, result.token, passed);
+
                     // Show toast notification
                     showToast(passed, tvLabel, result.token);
                 } else {

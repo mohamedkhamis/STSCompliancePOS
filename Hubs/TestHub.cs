@@ -13,7 +13,8 @@ public class TestHub(
     VSMConnectionService vsm,
     ComplianceTestService testsEA07,
     ComplianceTestServiceEA11 testsEA11,
-    TestResultsStore resultsStore)
+    TestResultsStore resultsStore,
+    TestLogService testLog)
     : Hub
 {
     public async Task SendProgress(string message)
@@ -299,6 +300,25 @@ public class TestHub(
         {
             await Clients.Caller.SendAsync("ReceiveProgress", $"Exception: {ex.Message}");
             await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = ex.Message, EA = ea });
+        }
+    }
+
+    // Log a token test result to SQLite
+    public async Task LogTokenTest(string? testVectorId, int ea, string category, string pan,
+        string? reg, string? ti, string? creditType, double? amount,
+        string? mgmtType, int? mgmtValue, string? issueDate, int? baseDate,
+        string? expectedToken, string? generatedToken, bool passed)
+    {
+        try
+        {
+            testLog.LogTokenTest(testVectorId, ea, category, pan, reg, ti,
+                creditType, amount, mgmtType, mgmtValue, issueDate, baseDate,
+                expectedToken, generatedToken, passed);
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Test logged: {(passed ? "PASS" : "FAIL")} — {testVectorId ?? "Manual"}");
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Log error: {ex.Message}");
         }
     }
 
