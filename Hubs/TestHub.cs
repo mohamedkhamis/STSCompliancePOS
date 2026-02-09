@@ -232,18 +232,34 @@ public class TestHub(
             return;
         }
 
-        DateTime issueDate = DateTime.Parse(issueDateStr);
+        try
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Generating {creditType} token (EA{(ea == 11 ? "11" : "07")})...");
 
-        (string? token, string? error) result;
-        if (ea == 11)
-            result = await testsEA11.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
-        else
-            result = await testsEA07.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
+            DateTime issueDate = DateTime.Parse(issueDateStr);
 
-        if (result.token != null)
-            await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
-        else
-            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+            (string? token, string? error) result;
+            if (ea == 11)
+                result = await testsEA11.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
+            else
+                result = await testsEA07.GenerateSingleToken(pan, reg, ti, creditType, amount, issueDate, baseDate);
+
+            if (result.token != null)
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"Token generated: {result.token}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"Token error: {result.error}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+            }
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Exception: {ex.Message}");
+            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = ex.Message, EA = ea });
+        }
     }
 
     // Generate management token (ClearCredit, SetMaxPowerLimit, ClearTamper, SetMPUL)
@@ -256,18 +272,34 @@ public class TestHub(
             return;
         }
 
-        DateTime issueDate = DateTime.Parse(issueDateStr);
+        try
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Generating {mgmtType} management token (EA{(ea == 11 ? "11" : "07")})...");
 
-        (string? token, string? error) result;
-        if (ea == 11)
-            result = await testsEA11.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
-        else
-            result = await testsEA07.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+            DateTime issueDate = DateTime.Parse(issueDateStr);
 
-        if (result.token != null)
-            await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
-        else
-            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+            (string? token, string? error) result;
+            if (ea == 11)
+                result = await testsEA11.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+            else
+                result = await testsEA07.GenerateSingleManagementToken(pan, reg, ti, mgmtType, value, issueDate, baseDate);
+
+            if (result.token != null)
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"Token generated: {result.token}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = result.token, Error = (string?)null, EA = ea });
+            }
+            else
+            {
+                await Clients.Caller.SendAsync("ReceiveProgress", $"Token error: {result.error}");
+                await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = result.error, EA = ea });
+            }
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("ReceiveProgress", $"Exception: {ex.Message}");
+            await Clients.Caller.SendAsync("ReceiveToken", new { Token = (string?)null, Error = ex.Message, EA = ea });
+        }
     }
 
     // Generate keychange tokens (2 KCTs for EA07, 4 KCTs for EA11)
